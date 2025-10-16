@@ -21,6 +21,12 @@ import ObservationDetailScreen from '../screens/ObservationDetailScreen';
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
+/** --- Layout constants (tweak freely, no logic impact) --- */
+const BAR_HEIGHT = 68;
+const FAB_SIZE = 84;        // ✅ bigger button (was 68)
+const FAB_BORDER = 6;
+const FAB_RADIUS = FAB_SIZE / 2;
+const FAB_LIFT = FAB_RADIUS + 12;
 
 function Tabs() {
   return (
@@ -33,14 +39,15 @@ function Tabs() {
         tabBarActiveTintColor: '#6DAF7A',
         tabBarInactiveTintColor: '#9AA3A7',
         tabBarStyle: styles.floatingBar,
+        tabBarItemStyle: styles.tabItem,   // ✅ centers icons vertically
       }}
     >
       <Tab.Screen
         name={TAB_HOME}
         component={HomeScreen}
         options={{
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="home-outline" size={24} color={color} />
           ),
         }}
       />
@@ -49,8 +56,8 @@ function Tabs() {
         name="Search"
         component={SearchScreen}
         options={{
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="search" size={size} color={color} />
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="search" size={24} color={color} />
           ),
         }}
       />
@@ -62,7 +69,14 @@ function Tabs() {
         options={{
           tabBarIcon: () => null, // icon is rendered inside custom button
           tabBarButton: (props) => (
-            <TouchableOpacity {...props} activeOpacity={0.9} style={styles.fabHitbox}>
+            <TouchableOpacity
+              {...props}
+              activeOpacity={0.9}
+              style={[styles.fabHitbox, { top: -FAB_LIFT }]} // ✅ visually centered overlap
+              accessibilityRole="button"
+              accessibilityLabel="Identify"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
               <View style={styles.fab}>
                 <Ionicons name="scan" size={28} color="#fff" />
               </View>
@@ -75,8 +89,8 @@ function Tabs() {
         name="Map"
         component={MapScreen}
         options={{
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="map" size={size} color={color} />
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="map" size={24} color={color} />
           ),
         }}
       />
@@ -85,8 +99,8 @@ function Tabs() {
         name="Profile"
         component={ProfileScreen}
         options={{
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-outline" size={size} color={color} />
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="person-outline" size={24} color={color} />
           ),
         }}
       />
@@ -97,10 +111,7 @@ function Tabs() {
 export default function RootNavigator() {
   return (
     <NavigationContainer>
-      <Stack.Navigator
-        initialRouteName={ROOT_TABS}
-        screenOptions={{ headerShown: false }}
-      >
+      <Stack.Navigator initialRouteName={ROOT_TABS} screenOptions={{ headerShown: false }}>
         {/* Tabs container */}
         <Stack.Screen name={ROOT_TABS} component={Tabs} />
 
@@ -115,8 +126,6 @@ export default function RootNavigator() {
   );
 }
 
-const BAR_HEIGHT = 70;
-
 const styles = StyleSheet.create({
   floatingBar: {
     position: 'absolute',
@@ -127,36 +136,51 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: '#fff',
     borderTopWidth: 0,
+    // subtle internal padding so icons sit perfectly centered
+    paddingTop: Platform.OS === 'ios' ? 10 : 6,
+    paddingBottom: Platform.OS === 'ios' ? 14 : 10,
+    // modern shadow
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOpacity: 0.12,
-        shadowRadius: 12,
-        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.10,
+        shadowRadius: 14,
+        shadowOffset: { width: 0, height: 8 },
       },
       android: { elevation: 12 },
     }),
   },
-  fabHitbox: {
-    top: -28,
+
+  // Centers each tab item vertically regardless of bar height
+  tabItem: {
+    height: BAR_HEIGHT,
     justifyContent: 'center',
     alignItems: 'center',
   },
+
+  // Touch container for the FAB (positioned above the bar)
+  fabHitbox: {
+    position: 'absolute',
+    alignSelf: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
   fab: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
+    width: FAB_SIZE,
+    height: FAB_SIZE,
+    borderRadius: FAB_RADIUS,
     backgroundColor: '#6DAF7A',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 6,
+    borderWidth: FAB_BORDER,
     borderColor: '#fff',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOpacity: 0.2,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.20,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 8 },
       },
       android: { elevation: 14 },
     }),

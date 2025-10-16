@@ -4,6 +4,7 @@ import { View, Image, StyleSheet, Text, TouchableOpacity, Alert } from 'react-na
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import ScannerOverlay from '../screens/components/ScannerOverlay'; // ✅ correct path
+import { MOCK_IDENTIFY_RESULT } from '../data/mockPlants';
 
 const API_BASE = 'https://<your-backend-host>';
 const LOW_CONFIDENCE_THRESHOLD = 60;
@@ -33,15 +34,11 @@ export default function PreviewScreen() {
       let result;
       if (USE_MOCK) {
         await new Promise(r => setTimeout(r, 1200));
+        // 🔄 Use the shared mock object, keep your current photo & fresh timestamp
         result = {
-          plantName: 'Nepenthes Rafflesiana',
-          confidence: 30,
-          conservationStatus: 'Endangered',
-          region: 'Southeast Asia',
-          locationName: 'National Park, Sarawak',
-          uploadedBy: 'Kelly Then',
+          ...MOCK_IDENTIFY_RESULT,
+          photoUri: uri ?? MOCK_IDENTIFY_RESULT.photoUri,
           uploadDate: new Date().toLocaleString(),
-          photoUri: uri,
         };
       } else {
         const form = new FormData();
@@ -86,7 +83,7 @@ export default function PreviewScreen() {
             <Text style={s.topTxt}>Back</Text>
           </TouchableOpacity>
 
-          <Text style={s.topTitle}>Preview</Text>
+        <Text style={s.topTitle}>Preview</Text>
 
           <TouchableOpacity onPress={onDone} style={[s.topBtn, s.doneBtn]}>
             <Text style={s.doneTxt}>Done</Text>

@@ -1,8 +1,26 @@
 // src/screens/ResultScreen.js
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, Image, StyleSheet, Pressable, Modal } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+const COLORS = {
+  red:   '#E74C3C',
+  amber: '#F4C542',
+  green: '#4CAF50',
+  ink:   '#2b2b2b',
+  gray:  '#777',
+  card:  '#FFFFFF',
+  bg:    '#F7F7F7',
+  muted: '#EEE',
+};
+
+function getConfidenceVisual(score = 0) {
+  const n = Number(score) || 0;
+  if (n < 40)  return { label: 'Low',    color: COLORS.red   };
+  if (n < 70)  return { label: 'Medium', color: COLORS.amber };
+  return        { label: 'High',  color: COLORS.green };
+}
 
 export default function ResultScreen() {
   const nav = useNavigation();
@@ -10,7 +28,6 @@ export default function ResultScreen() {
   const [showModal, setShowModal] = useState(false);
 
   const {
-    // existing
     plantName,
     confidence,
     conservationStatus,
@@ -21,13 +38,17 @@ export default function ResultScreen() {
     photoUri,
     lowConfidence,
 
-    // NEW (optional)
+    // optional extras
     scientificName,
     commonName,
     speciesId,
   } = route.params ?? {};
 
-  const levelLabel = confidence >= 60 ? 'High' : 'Low';
+  const { label: levelLabel, color: levelColor } = useMemo(
+    () => getConfidenceVisual(confidence),
+    [confidence]
+  );
+
   const endangered =
     typeof conservationStatus === 'string' &&
     conservationStatus.toLowerCase().includes('endangered');
@@ -45,56 +66,56 @@ export default function ResultScreen() {
 
       {/* Card */}
       <View style={s.card}>
-        <View style={s.row}>
+        <View style={s.topRow}>
           <Image source={{ uri: photoUri }} style={s.thumb} />
           <View style={s.confBox}>
-            <View style={s.circle}>
-              <Text style={s.level}>{levelLabel}</Text>
-              <Text style={s.score}>{Number(confidence).toFixed(0)}</Text>
+            <View style={[s.circle, { borderColor: levelColor }]}>
+              <Text style={[s.level, { color: levelColor }]}>{levelLabel}</Text>
+              <Text style={[s.score, { color: levelColor }]}>{Number(confidence).toFixed(0)}</Text>
               <Text style={s.scoreSub}>Confidence</Text>
             </View>
           </View>
         </View>
 
         {/* Names */}
-        <Text style={s.name}>
-          {commonName || plantName || 'Unknown Plant'}
-        </Text>
+        <View style={{ marginTop: 10 }}>
+          <Text style={s.commonName}>
+            {commonName || plantName || 'Unknown Plant'}
+          </Text>
 
-        {(scientificName || plantName) && (
-          <View style={s.scienceRow}>
-            <Text style={s.scienceName}>
-              <Text style={{ fontStyle: 'italic' }}>
-                {scientificName || plantName}
+          {(scientificName || plantName) && (
+            <View style={s.scienceRow}>
+              <Text style={s.scienceName}>
+                <Text style={{ fontStyle: 'italic' }}>
+                  {scientificName || plantName}
+                </Text>
+                {speciesId ? `  •  ID: ${speciesId}` : ''}
               </Text>
-              {speciesId ? `  •  ID: ${speciesId}` : ''}
-            </Text>
 
-            {endangered && (
-              <View style={s.badge}>
-                <Text style={s.badgeTxt}>Endangered</Text>
-              </View>
-            )}
-          </View>
-        )}
+              {endangered && (
+                <View style={s.badgeDanger}>
+                  <Text style={s.badgeDangerTxt}>Endangered</Text>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
 
         {/* Meta */}
-        <Text style={s.info}>
-          Confidence Score: {Number(confidence).toFixed(1)}%
-        </Text>
-        <Text style={s.info}>Location: {locationName || 'Unknown location'}</Text>
-        <Text style={s.info}>Region: {region || '—'}</Text>
-        <Text style={s.info}>
-          Conservation Status: {conservationStatus || '—'}
-        </Text>
+        <View style={s.metaList}>
+          <InfoRow label="Confidence Score" value={`${Number(confidence).toFixed(1)}%`} />
+          <InfoRow label="Location" value={locationName || 'Unknown location'} />
+          <InfoRow label="Region" value={region || '—'} />
+          <InfoRow label="Conservation Status" value={conservationStatus || '—'} />
+        </View>
 
-        <Text style={s.meta}>
+        <Text style={s.uploadMeta}>
           Uploaded by {uploadedBy || 'You'}
           {'\n'}
           {uploadDate}
         </Text>
 
-        {/* Low-confidence flag flow (unchanged) */}
+        {/* Low-confidence flow */}
         {lowConfidence && (
           <>
             <Pressable style={s.flagBtn} onPress={() => setShowModal(true)}>
@@ -139,67 +160,87 @@ export default function ResultScreen() {
   );
 }
 
+/* --- tiny component for neat rows --- */
+function InfoRow({ label, value }) {
+  return (
+    <View style={s.infoRow}>
+      <Text style={s.infoLabel}>{label}</Text>
+      <Text style={s.infoValue}>{value}</Text>
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F7F7F7' },
+  container: { flex: 1, backgroundColor: COLORS.bg },
 
   header: {
     height: 56,
-    backgroundColor: '#EEE',
+    backgroundColor: '#F0F0F0',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E5E5',
   },
   backBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   backTxt: { fontSize: 24, color: '#333' },
-  title: { fontWeight: '700', color: '#333' },
+  title: { fontWeight: '800', color: '#333' },
 
-  card: { margin: 12, backgroundColor: '#fff', borderRadius: 12, padding: 12, elevation: 1 },
-  row: { flexDirection: 'row', alignItems: 'center' },
-  thumb: { width: 96, height: 96, borderRadius: 8, marginRight: 12 },
+  card: {
+    margin: 12,
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    padding: 14,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+  },
+
+  topRow: { flexDirection: 'row', alignItems: 'center' },
+  thumb: { width: 110, height: 110, borderRadius: 12, marginRight: 14, backgroundColor: '#DDD' },
   confBox: { flex: 1, alignItems: 'center' },
   circle: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    borderWidth: 10,
-    borderColor: '#B9EAC3',
+    width: 150, height: 150,
+    borderRadius: 75,
+    borderWidth: 12,            // ring thickness
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#FAFAFA',
   },
-  level: { color: '#6DAF7A', fontWeight: '700', marginBottom: 2 },
-  score: { fontSize: 28, fontWeight: '800', color: '#2b2b2b', lineHeight: 30 },
-  scoreSub: { color: '#777' },
+  level: { fontWeight: '800', marginBottom: 2 },
+  score: { fontSize: 30, fontWeight: '900', lineHeight: 32 },
+  scoreSub: { color: COLORS.gray },
 
-  name: { marginTop: 12, fontSize: 18, fontWeight: '800', color: '#2b2b2b' },
-  scienceRow: {
-    marginTop: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  scienceName: { color: '#444' },
+  commonName: { fontSize: 18, fontWeight: '900', color: COLORS.ink },
+  scienceRow: { marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  scienceName: { color: '#555' },
 
-  badge: {
-    backgroundColor: '#F8D7DA',
+  badgeDanger: {
+    backgroundColor: '#FCE7E9',
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  badgeTxt: { color: '#B02A37', fontWeight: '800', fontSize: 12 },
+  badgeDangerTxt: { color: '#C22534', fontWeight: '800', fontSize: 12 },
 
-  info: { color: '#333', marginTop: 6 },
-  meta: { color: '#777', marginTop: 10 },
+  metaList: { marginTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.muted, paddingTop: 10 },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
+  infoLabel: { color: '#666' },
+  infoValue: { color: COLORS.ink, fontWeight: '700' },
+
+  uploadMeta: { color: COLORS.gray, marginTop: 10 },
 
   flagBtn: {
     marginTop: 16,
-    backgroundColor: '#E74C3C',
-    borderRadius: 22,
+    backgroundColor: COLORS.red,
+    borderRadius: 24,
     alignItems: 'center',
     paddingVertical: 12,
   },
-  flagTxt: { color: '#fff', fontWeight: '800' },
+  flagTxt: { color: '#fff', fontWeight: '900' },
 
   modalBg: {
     flex: 1,
@@ -208,13 +249,13 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   modalBox: {
-    width: '80%',
+    width: '82%',
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 20,
     elevation: 4,
   },
-  modalTitle: { fontWeight: '800', fontSize: 18, marginBottom: 10 },
+  modalTitle: { fontWeight: '900', fontSize: 18, marginBottom: 10 },
   modalText: { color: '#333', fontSize: 15, marginBottom: 20 },
   modalBtns: { flexDirection: 'row', justifyContent: 'flex-end' },
   cancelBtn: {
@@ -229,7 +270,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: '#E74C3C',
+    backgroundColor: COLORS.red,
   },
   confirmTxt: { color: '#fff', fontWeight: '800' },
 });

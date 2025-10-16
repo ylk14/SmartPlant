@@ -11,6 +11,18 @@ export const mockUser = {
 // you can set photoUri to require('../../assets/NepenthesRafflesiana.jpeg')
 // and the Image component will accept it (see ProfileScreen renderItem).
 
+
+export const MOCK_IDENTIFY_RESULT = {
+  plantName: 'Nepenthes rafflesiana',
+  confidence: 80, // number, not string
+  conservationStatus: 'Endangered',
+  region: 'Southeast Asia',
+  locationName: 'National Park, Sarawak',
+  uploadedBy: 'Kelly Then',
+  // Preview will overwrite these at runtime:
+  uploadDate: '2025-10-01T10:00:00Z',
+  photoUri: null,
+}; 
 export const MOCK_POSTS = [
   {
     id: 'obs_001',
@@ -70,19 +82,5 @@ export const MOCK_POSTS = [
     source: 'camera',
   },
 
-  {
-  id: 'obs_123',
-  speciesName: 'Nepenthes rafflesiana',
-  commonName: "Raffles' Pitcher Plant",
-  isEndangered: true,
-  photoUri: 'https://…',
-  createdAt: '2025-09-10T10:45:00Z',
-  confidence: 82,
-  region: 'Southeast Asia',
-  locationName: 'National Park, Sarawak',
-  flagged: false,
-  source: 'camera',
-  coords: { lat: 1.61, lon: 110.43 }
-}
-
+  
 ];
