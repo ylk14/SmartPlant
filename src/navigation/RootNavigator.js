@@ -4,7 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
+import { ROOT_TABS, TAB_HOME, TAB_IDENTIFY } from './routes';
 
 // screens
 import HomeScreen from '../screens/HomeScreen';
@@ -14,28 +14,29 @@ import MapScreen from '../screens/MapScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import CameraScreen from '../screens/CameraScreen';
 import PreviewScreen from '../screens/PreviewScreen';
-import ResultScreen from '../screens/ResultScreen'; 
+import ResultScreen from '../screens/ResultScreen';
 import FlagUnsureScreen from '../screens/FlagUnsureScreen';
-
-
+import ObservationDetailScreen from '../screens/ObservationDetailScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
+
 function Tabs() {
   return (
     <Tab.Navigator
+      initialRouteName={TAB_HOME}
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,
         tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: '#6DAF7A',
         tabBarInactiveTintColor: '#9AA3A7',
-        tabBarStyle: styles.floatingBar, // 👈 floating pill
+        tabBarStyle: styles.floatingBar,
       }}
     >
       <Tab.Screen
-        name="Home"
+        name={TAB_HOME}
         component={HomeScreen}
         options={{
           tabBarIcon: ({ color, size }) => (
@@ -56,7 +57,7 @@ function Tabs() {
 
       {/* BIG center Scan button that overlaps the bar */}
       <Tab.Screen
-        name="Scan"
+        name={TAB_IDENTIFY}
         component={IdentifyScreen}
         options={{
           tabBarIcon: () => null, // icon is rendered inside custom button
@@ -96,14 +97,19 @@ function Tabs() {
 export default function RootNavigator() {
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Tabs" component={Tabs} />
+      <Stack.Navigator
+        initialRouteName={ROOT_TABS}
+        screenOptions={{ headerShown: false }}
+      >
+        {/* Tabs container */}
+        <Stack.Screen name={ROOT_TABS} component={Tabs} />
+
+        {/* Flow screens on top of tabs */}
         <Stack.Screen name="Camera" component={CameraScreen} />
         <Stack.Screen name="Preview" component={PreviewScreen} />
         <Stack.Screen name="Result" component={ResultScreen} />
         <Stack.Screen name="FlagUnsure" component={FlagUnsureScreen} />
-
-
+        <Stack.Screen name="ObservationDetail" component={ObservationDetailScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -121,7 +127,6 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: '#fff',
     borderTopWidth: 0,
-    // shadow / elevation
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -132,14 +137,11 @@ const styles = StyleSheet.create({
       android: { elevation: 12 },
     }),
   },
-
-  // expands the touch target for the FAB without changing its size
   fabHitbox: {
-    top: -28, // lift it above the bar
+    top: -28,
     justifyContent: 'center',
     alignItems: 'center',
   },
-
   fab: {
     width: 68,
     height: 68,
@@ -147,7 +149,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#6DAF7A',
     justifyContent: 'center',
     alignItems: 'center',
-    // white ring so it looks “cut out” of the bar
     borderWidth: 6,
     borderColor: '#fff',
     ...Platform.select({
