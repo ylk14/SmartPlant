@@ -7,18 +7,24 @@ const API_BASE_URL = "https://your-backend-server.com/api";
 // ======================
 // LOGIN FUNCTION
 // ======================
+const MOCK_ACCOUNTS = {
+  "admin@smartplant.dev": { password: "admin123", role: "admin" },
+  "ranger@smartplant.dev": { password: "user1234", role: "user" },
+};
+
 //mock version for testing
 export const loginUser = async (email, password) => {
-  console.log("Logging in:", email, password);
+  const key = email.trim().toLowerCase();
+  console.log("Logging in:", key);
   return new Promise((resolve, reject) => {
     setTimeout(() => {
-      // simulate login success only for test credentials
-      if (email === "test@example.com" && password === "12345678") {
-        resolve({ success: true });
+      const account = MOCK_ACCOUNTS[key];
+      if (account && account.password === password) {
+        resolve({ success: true, role: account.role, email: key });
       } else {
         reject(new Error("Invalid email or password"));
       }
-    }, 1000);
+    }, 700);
   });
 };
 

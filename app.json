@@ -7,9 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "plugins": [
-      "react-native-vision-camera"
-    ],
+
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",

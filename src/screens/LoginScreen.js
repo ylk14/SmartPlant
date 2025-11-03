@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { loginUser, forgotPassword } from "../../services/api";
-import { ROOT_TABS } from '../navigation/routes';
+import { ADMIN_ROOT, ROOT_TABS } from '../navigation/routes';
 
 
 
@@ -21,21 +21,6 @@ export default function LoginScreen({ navigation }) {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  // ✅ Fake API placeholder (replace later by backend)
-  const fakeLoginAPI = async (email, password) => {
-    console.log("Sending login request:", email, password);
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        // Simulate success if email = "test@example.com"
-        if (email === "test@example.com" && password === "12345678") {
-          resolve({ success: true });
-        } else {
-          reject(new Error("Invalid email or password"));
-        }
-      }, 1000);
-    });
-  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -47,16 +32,24 @@ export default function LoginScreen({ navigation }) {
     try {
       const response = await loginUser(email, password);
       if (response.success) {
-        Alert.alert("Login Successful", "Welcome back!");
+        const destinations = {
+          admin: ADMIN_ROOT,
+          user: ROOT_TABS,
+        };
+        const destination = destinations[response.role] ?? ROOT_TABS;
+        Alert.alert(
+          "Login Successful",
+          `Signed in as ${response.role === 'admin' ? 'administrator' : 'user'}.`
+        );
         // TODO: Remember user if checked
         if (rememberMe) {
           console.log("User wants to be remembered:", email);
           // Later: save token or user info securely
         }
         navigation.reset({
-  index: 0,
-  routes: [{ name: ROOT_TABS }],
-});
+          index: 0,
+          routes: [{ name: destination }],
+        });
 
       }
     } catch (error) {

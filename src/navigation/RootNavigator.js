@@ -4,7 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { ROOT_TABS, TAB_HOME, TAB_IDENTIFY } from './routes';
+import { ROOT_TABS, TAB_HOME, TAB_IDENTIFY, ADMIN_ROOT } from './routes';
 
 // screens
 import HomeScreen from '../screens/HomeScreen';
@@ -20,6 +20,7 @@ import WelcomeScreen from '../screens/WelcomeScreen';
 import SignUpScreen from '../screens/SignUpScreen';
 import LoginScreen from '../screens/LoginScreen';
 import HeatmapScreen from '../screens/HeatmapScreen';
+import AdminNavigator from './AdminNavigator';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -122,6 +123,14 @@ export default function RootNavigator() {
 
         {/* --- App tabs (ONLY place where Home lives) --- */}
         <Stack.Screen name={ROOT_TABS} component={Tabs} />
+        <Stack.Screen
+          name={ADMIN_ROOT}
+          component={AdminNavigator}
+          options={{
+            headerShown: false,
+            presentation: 'containedModal',
+          }}
+        />
 
         {/* --- Flow screens on top of tabs --- */}
         <Stack.Screen name="Camera" component={CameraScreen} />
