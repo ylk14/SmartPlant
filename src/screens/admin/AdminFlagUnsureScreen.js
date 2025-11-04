@@ -3,7 +3,7 @@ import { SafeAreaView, View, Text, StyleSheet, TouchableOpacity } from 'react-na
 
 const MOCK_FLAGGED = [
   {
-    id: 'OBS-3011',
+    observation_id: 'OBS-3011',
     plantName: 'Unknown Nepenthes',
     confidence: 0.42,
     user: 'field.scout',
@@ -11,7 +11,7 @@ const MOCK_FLAGGED = [
     location: 'Gunung Mulu, Sarawak',
   },
   {
-    id: 'OBS-2987',
+    observation_id: 'OBS-2987',
     plantName: 'Rafflesia ?',
     confidence: 0.35,
     user: 'flora.lens',
@@ -19,7 +19,7 @@ const MOCK_FLAGGED = [
     location: 'Mount Kinabalu, Sabah',
   },
   {
-    id: 'OBS-2979',
+    observation_id: 'OBS-2979',
     plantName: 'Pitcher Plant Candidate',
     confidence: 0.28,
     user: 'botany.lee',
@@ -42,9 +42,9 @@ export default function AdminFlagUnsureScreen() {
 
       <View style={styles.list}>
         {MOCK_FLAGGED.map((item) => (
-          <View key={item.id} style={styles.card}>
+          <View key={item.observation_id} style={styles.card}>
             <View style={styles.cardHeader}>
-              <Text style={styles.cardId}>{item.id}</Text>
+              <Text style={styles.cardId}>{item.observation_id}</Text>
               <Text style={styles.confidence}>Confidence {formatConfidence(item.confidence)}</Text>
             </View>
             <Text style={styles.plantName}>{item.plantName}</Text>

@@ -1,6 +1,7 @@
 // src/screens/ProfileScreen.js
 import React, { useMemo, useState } from 'react';
 import { View, Text, Image, StyleSheet, FlatList, Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 
@@ -118,8 +119,17 @@ export default function ProfileScreen() {
       {/* Curved header */}
       <View style={[s.headerWrap, { paddingTop: insets.top + 8 }]}>
         <View style={s.headerBg} />
-        <View style={[s.headerContent, { height: headerHeight }]}>
-          <Image source={{ uri: mockUser.avatar }} style={s.avatar} />
+          <View style={[s.headerContent, { height: headerHeight }]}>
+            <View style={s.headerTopRow}>
+              <Image source={{ uri: mockUser.avatar }} style={s.avatar} />
+              <Pressable
+                style={s.settingsButton}
+                onPress={() => nav.navigate('Settings')}
+                accessibilityRole="button"
+              >
+                <Ionicons name="settings-outline" size={22} color="#1F2A37" />
+              </Pressable>
+            </View>
           <Text style={s.name}>{mockUser.username}</Text>
           <Text style={s.uid}>UID: {mockUser.uid}</Text>
         </View>
@@ -158,10 +168,23 @@ const s = StyleSheet.create({
     borderBottomRightRadius: 40,
   },
   headerContent: { alignItems: 'center', justifyContent: 'center' },
+  headerTopRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 32,
+    marginBottom: 10,
+  },
   avatar: {
     width: 86, height: 86, borderRadius: 43,
     borderWidth: 3, borderColor: '#fff',
-    marginBottom: 10, backgroundColor: '#E5E7EB',
+    backgroundColor: '#E5E7EB',
+  },
+  settingsButton: {
+    padding: 10,
+    borderRadius: 999,
+    backgroundColor: '#E5ECF3',
   },
   name: { fontSize: 18, fontWeight: '800', color: '#244332' },
   uid: { color: '#2E6A4C', marginTop: 2, opacity: 0.9 },

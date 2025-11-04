@@ -7,6 +7,7 @@ import {
   Image,
   Modal,
   ScrollView,
+  Platform,
 } from "react-native";
 import MapView, { Marker, Heatmap } from "react-native-maps";
 import { Ionicons } from "@expo/vector-icons";
@@ -115,6 +116,8 @@ export default function HeatmapScreen() {
     }
   }, [selectedSpecies]);
 
+  const HEATMAP_RADIUS = Platform.OS === "android" ? 40 : 60;
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -156,68 +159,60 @@ export default function HeatmapScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Map */}
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        initialRegion={{
-          latitude: 1.55,
-          longitude: 110.35,
-          latitudeDelta: 0.4,
-          longitudeDelta: 0.4,
-        }}
-        zoomEnabled={true}
-        scrollEnabled={true}
-        onPress={() => setSelectedPlant(null)} 
-      >
-        {/* HEATMAP MODE (no click interaction) */}
-        {mode === "heatmap" && (
-          <Heatmap
-            points={filteredObservations.map((obs) => ({
-              latitude: obs.location_latitude,
-              longitude: obs.location_longitude,
-              weight: obs.species.is_endangered ? 2 : 1,
-            }))}
-            radius={50}
-            opacity={0.7}
-            gradient={{
-              colors: ["#ADFF2F", "#FFFF00", "#FF8C00", "#FF0000"],
-              startPoints: [0.01, 0.25, 0.5, 1],
-              colorMapSize: 256,
-            }}
-          />
-        )}
-
-        {/* PINS MODE (interactive markers) */}
-        {mode === "pins" &&
-          filteredObservations.map((obs) => (
-            <Marker
-              key={obs.observation_id}
-              coordinate={{
+        {/* Map */}
+        <MapView
+          ref={mapRef}
+          style={styles.map}
+          initialRegion={{
+            latitude: 1.55,
+            longitude: 110.35,
+            latitudeDelta: 0.4,
+            longitudeDelta: 0.4,
+          }}
+          zoomEnabled
+          scrollEnabled
+          onPress={() => setSelectedPlant(null)}
+        >
+          {/* HEATMAP MODE (no click interaction) */}
+          {mode === "heatmap" && filteredObservations.length > 0 && (
+            <Heatmap
+              points={filteredObservations.map((obs) => ({
                 latitude: obs.location_latitude,
                 longitude: obs.location_longitude,
+                weight: obs.species.is_endangered ? 2 : 1,
+              }))}
+              radius={HEATMAP_RADIUS}
+              opacity={0.7}
+              gradient={{
+                colors: ["#ADFF2F", "#FFFF00", "#FF8C00", "#FF0000"],
+                startPoints: [0.01, 0.25, 0.5, 1],
+                colorMapSize: 256,
               }}
-              title={obs.species.common_name}
-              description={obs.location_name}
-              onPress={() => {
-                try {
-                  setSelectedPlant(obs);
-                } catch (e) {
-                  console.log("Error selecting plant:", e);
-                }
-              }}
-            >
-              <Image
-                source={
-                  typeof obs.species.image_url === "number"
-                    ? obs.species.image_url
-                    : { uri: obs.species.image_url }
-                }
-                style={{ width: 40, height: 40, borderRadius: 20 }}
+            />
+          )}
+
+          {/* PINS MODE (interactive markers) */}
+          {mode === "pins" &&
+            filteredObservations.map((obs) => (
+              <Marker
+                key={obs.observation_id}
+                coordinate={{
+                  latitude: obs.location_latitude,
+                  longitude: obs.location_longitude,
+                }}
+                title={obs.species.common_name}
+                description={obs.location_name}
+                pinColor="#2C6E49"
+                onPress={() => {
+                  try {
+                    setSelectedPlant(obs);
+                  } catch (e) {
+                    console.log("Error selecting plant:", e);
+                  }
+                }}
               />
-            </Marker>
-          ))}
-      </MapView>
+            ))}
+        </MapView>
 
       {/* Filter Modal */}
       <Modal visible={filterVisible} transparent animationType="slide">

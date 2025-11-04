@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { SafeAreaView, Text, StyleSheet, View, Switch, TouchableOpacity } from 'react-native';
 
 const INITIAL_USERS = [
-  { username: 'flora_admin', role: 'Super Admin', email: 'flora@smartplant.dev', active: true },
-  { username: 'ranger.sam', role: 'Field Researcher', email: 'sam@smartplant.dev', active: false },
-  { username: 'data.joy', role: 'Data Analyst', email: 'joy@smartplant.dev', active: true },
+  { user_id: 1, username: 'flora_admin', role: 'Super Admin', email: 'flora@smartplant.dev', active: true },
+  { user_id: 2, username: 'ranger.sam', role: 'Field Researcher', email: 'sam@smartplant.dev', active: false },
+  { user_id: 3, username: 'data.joy', role: 'Data Analyst', email: 'joy@smartplant.dev', active: true },
 ];
 
 export default function AdminUsersScreen() {
@@ -27,10 +27,11 @@ export default function AdminUsersScreen() {
 
       <View style={styles.list}>
         {users.map((user) => (
-          <View key={user.username} style={styles.card}>
+          <View key={user.user_id} style={styles.card}>
             <View style={styles.headerRow}>
               <View>
                 <Text style={styles.username}>{user.username}</Text>
+                <Text style={styles.metaId}>User ID: {user.user_id}</Text>
                 <Text style={styles.email}>{user.email}</Text>
               </View>
               <View style={styles.statusGroup}>
@@ -101,6 +102,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 13,
     color: '#5F6F7E',
+  },
+  metaId: {
+    marginTop: 2,
+    fontSize: 11,
+    color: '#7A8996',
+    letterSpacing: 0.3,
   },
   statusGroup: {
     alignItems: 'flex-end',
