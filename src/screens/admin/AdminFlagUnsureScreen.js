@@ -1,67 +1,83 @@
 import React from 'react';
-import { SafeAreaView, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { ADMIN_FLAG_REVIEW } from '../../navigation/routes';
 
 const MOCK_FLAGGED = [
   {
     observation_id: 'OBS-3011',
-    plantName: 'Unknown Nepenthes',
+    plant_name: 'Unknown Nepenthes',
     confidence: 0.42,
     user: 'field.scout',
-    submittedAt: '2025-10-12T10:12:00Z',
+    submitted_at: '2025-10-12T10:12:00Z',
     location: 'Gunung Mulu, Sarawak',
+    photo: require('../../../assets/pitcher.jpg'),
+    is_endangered: true,
   },
   {
     observation_id: 'OBS-2987',
-    plantName: 'Rafflesia ?',
+    plant_name: 'Rafflesia ?',
     confidence: 0.35,
     user: 'flora.lens',
-    submittedAt: '2025-10-09T08:45:00Z',
+    submitted_at: '2025-10-09T08:45:00Z',
     location: 'Mount Kinabalu, Sabah',
+    photo: require('../../../assets/rafflesia.jpg'),
+    is_endangered: true,
   },
   {
     observation_id: 'OBS-2979',
-    plantName: 'Pitcher Plant Candidate',
+    plant_name: 'Pitcher Plant Candidate',
     confidence: 0.28,
     user: 'botany.lee',
-    submittedAt: '2025-10-08T16:20:00Z',
+    submitted_at: '2025-10-08T16:20:00Z',
     location: 'Fraser\'s Hill, Pahang',
+    photo: require('../../../assets/pitcher.jpg'),
+    is_endangered: true,
   },
 ];
 
-function formatConfidence(score) {
-  return `${Math.round(score * 100)}%`;
-}
+const toPercent = (score) => `${Math.round(score * 100)}%`;
 
 export default function AdminFlagUnsureScreen() {
+  const navigation = useNavigation();
+
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.heading}>Flag Unsure Queue</Text>
-      <Text style={styles.subheading}>
-        These observations were flagged by the community or the AI due to low confidence. Replace this list with live data when the endpoint is ready.
+      <Text style={styles.headerTitle}>Flag Unsure Queue</Text>
+      <Text style={styles.headerSubtitle}>
+        AI low-confidence identifications awaiting manual review.
       </Text>
 
-      <View style={styles.list}>
-        {MOCK_FLAGGED.map((item) => (
-          <View key={item.observation_id} style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardId}>{item.observation_id}</Text>
-              <Text style={styles.confidence}>Confidence {formatConfidence(item.confidence)}</Text>
-            </View>
-            <Text style={styles.plantName}>{item.plantName}</Text>
-            <Text style={styles.meta}>Submitted by {item.user}</Text>
-            <Text style={styles.meta}>Location ? {item.location}</Text>
-            <Text style={styles.meta}>Submitted ? {new Date(item.submittedAt).toLocaleString()}</Text>
+      <View style={styles.table}>
+        <View style={[styles.row, styles.headerRow]}>
+          <Text style={[styles.cellWide, styles.headerText]}>Plant</Text>
+          <Text style={[styles.cell, styles.headerText]}>Confidence</Text>
+          <Text style={[styles.cellAction, styles.headerText]}>Action</Text>
+        </View>
 
-            <View style={styles.actionsRow}>
-              <TouchableOpacity style={styles.actionButton} activeOpacity={0.8}>
-                <Text style={styles.actionText}>View Details</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionButton, styles.actionSecondary]} activeOpacity={0.8}>
-                <Text style={[styles.actionText, styles.actionSecondaryText]}>Assign</Text>
-              </TouchableOpacity>
+        <FlatList
+          data={MOCK_FLAGGED}
+          keyExtractor={(item) => item.observation_id}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          renderItem={({ item }) => (
+            <View style={styles.row}>
+              <View style={styles.cellWide}>
+                <Text style={styles.plantText}>{item.plant_name}</Text>
+                <Text style={styles.metaText}>Obs {item.observation_id} ? {item.location}</Text>
+              </View>
+              <Text style={styles.cell}>{toPercent(item.confidence)}</Text>
+              <View style={styles.cellAction}>
+                <TouchableOpacity
+                  style={styles.reviewButton}
+                  onPress={() => navigation.navigate(ADMIN_FLAG_REVIEW, { observation: item })}
+                >
+                  <Text style={styles.reviewText}>Review</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        ))}
+          )}
+        />
       </View>
     </SafeAreaView>
   );
@@ -70,80 +86,77 @@ export default function AdminFlagUnsureScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
-    backgroundColor: '#F5F6F8',
+    backgroundColor: '#F6F9F4',
+    padding: 20,
   },
-  heading: {
+  headerTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#1E2D3D',
+    color: '#1F2A37',
   },
-  subheading: {
-    marginTop: 8,
+  headerSubtitle: {
     fontSize: 14,
-    color: '#4E5D6A',
-    lineHeight: 20,
+    color: '#4B5563',
+    marginTop: 4,
+    marginBottom: 16,
   },
-  list: {
-    marginTop: 24,
-    gap: 16,
-  },
-  card: {
+  table: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 18,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#E4E9EE',
+    borderColor: '#E2E8F0',
   },
-  cardHeader: {
+  row: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  cardId: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6A7A88',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  confidence: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#C2553B',
-  },
-  plantName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#23364B',
-  },
-  meta: {
-    marginTop: 6,
-    fontSize: 13,
-    color: '#5F6F7E',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    gap: 12,
-    marginTop: 18,
-  },
-  actionButton: {
-    paddingVertical: 10,
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    borderRadius: 10,
-    backgroundColor: '#1E88E5',
   },
-  actionSecondary: {
-    backgroundColor: '#E8EEF5',
+  headerRow: {
+    backgroundColor: '#F1F5F9',
   },
-  actionText: {
+  separator: {
+    height: 1,
+    backgroundColor: '#E2E8F0',
+  },
+  cell: {
+    flex: 0.9,
+    fontSize: 13,
+    color: '#334155',
+  },
+  cellWide: {
+    flex: 1.8,
+  },
+  cellAction: {
+    width: 120,
+    alignItems: 'flex-end',
+  },
+  headerText: {
+    fontWeight: '700',
+    color: '#0F172A',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  plantText: {
     fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  metaText: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  reviewButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: '#6366F1',
+  },
+  reviewText: {
+    fontSize: 12,
     fontWeight: '600',
     color: '#FFFFFF',
-  },
-  actionSecondaryText: {
-    color: '#1E2D3D',
   },
 });

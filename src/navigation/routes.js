@@ -8,3 +8,7 @@ export const ADMIN_USERS = 'AdminUsers';
 export const ADMIN_FLAG_UNSURE = 'AdminFlagUnsure';
 export const ADMIN_HEATMAP = 'AdminHeatmap';
 export const ADMIN_ENDANGERED = 'AdminEndangeredList';
+export const ADMIN_USER_DETAIL = 'AdminUserDetail';
+export const ADMIN_IOT = 'AdminIot';
+export const ADMIN_IOT_DETAIL = 'AdminIotDetail';
+export const ADMIN_FLAG_REVIEW = 'AdminFlagReview';
