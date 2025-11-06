@@ -6,7 +6,8 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import ScannerOverlay from '../screens/components/ScannerOverlay'; // ✅ correct path
 import { MOCK_IDENTIFY_RESULT } from '../data/mockPlants';
 
-const API_BASE = 'https://<your-backend-host>';
+// const API_BASE = 'http://localhost:3000';
+const API_BASE = 'http://10.0.2.2:3000';
 const LOW_CONFIDENCE_THRESHOLD = 60;
 
 export default function PreviewScreen() {
@@ -29,42 +30,37 @@ export default function PreviewScreen() {
   const onDone = async () => {
     try {
       setLoading(true);
-      const USE_MOCK = true;
 
-      let result;
-      if (USE_MOCK) {
-        await new Promise(r => setTimeout(r, 1200));
-        // 🔄 Use the shared mock object, keep your current photo & fresh timestamp
-        result = {
-          ...MOCK_IDENTIFY_RESULT,
-          photoUri: uri ?? MOCK_IDENTIFY_RESULT.photoUri,
-          uploadDate: new Date().toLocaleString(),
-        };
-      } else {
-        const form = new FormData();
-        form.append('image', { uri, name: 'photo.jpg', type: 'image/jpeg' });
-        form.append('source', source || 'unknown');
-        form.append('exif', JSON.stringify(exif ?? {}));
+      const form = new FormData();
+      form.append('image', { uri, name: 'photo.jpg', type: 'image/jpeg' });
 
-        const res = await fetch(`${API_BASE}/api/identify`, { method: 'POST', headers: { Accept: 'application/json' }, body: form });
-        if (!res.ok) throw new Error(`Identify failed: ${res.status}`);
-        const data = await res.json();
-        result = {
-          plantName: data.species_name,
-          confidence: Number(data.confidence_score) || 0,
-          conservationStatus: data.conservation_status || 'Unknown',
-          region: data.region || 'Unknown',
-          locationName: data.location_name || 'Unknown location',
-          uploadedBy: data.uploaded_by || 'You',
-          uploadDate: data.uploaded_at || new Date().toISOString(),
-          photoUri: uri,
-        };
-      }
+      const res = await fetch(`${API_BASE}/scan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'multipart/form-data' },
+        body: form,
+      });
 
-      nav.replace('Result', { ...result, lowConfidence: result.confidence < LOW_CONFIDENCE_THRESHOLD });
+      if (!res.ok) throw new Error(`Identify failed: ${res.status}`);
+      const data = await res.json();
+
+      // Match your backend's response structure
+      // (from your latest test result)
+      const result = {
+        plantName: data.primary.species_name,
+        confidence: data.primary.confidence * 100,
+        lowConfidence: data.primary.unsure,
+        photoUri: `${API_BASE}${data.primary.image_path}`,
+        uploadedBy: "You",
+        uploadDate: new Date(data.created_at).toLocaleString(),
+        region: "—",
+        locationName: "—",
+        conservationStatus: "Unknown",
+      };
+
+      nav.replace("Result", result);
     } catch (e) {
       console.warn(e);
-      Alert.alert('Scan failed', 'Could not analyze the photo. Please try again.');
+      Alert.alert("Scan failed", "Could not analyze the photo. Please try again.");
     } finally {
       setLoading(false);
     }
