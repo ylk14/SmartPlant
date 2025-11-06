@@ -4,7 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { ROOT_TABS, TAB_HOME, TAB_IDENTIFY, ADMIN_ROOT, ADMIN_ENDANGERED, ADMIN_USER_DETAIL, ADMIN_IOT, ADMIN_IOT_DETAIL, ADMIN_FLAG_REVIEW } from './routes';
+import { ROOT_TABS, TAB_HOME, TAB_IDENTIFY, ADMIN_ROOT, ADMIN_ENDANGERED, ADMIN_USER_DETAIL, ADMIN_IOT, ADMIN_IOT_DETAIL, ADMIN_FLAG_REVIEW, ADMIN_AGENT_CHAT } from './routes';
 
 // screens
 import HomeScreen from '../screens/HomeScreen';
@@ -27,6 +27,7 @@ import SignUpScreen from '../screens/SignUpScreen';
 import LoginScreen from '../screens/LoginScreen';
 import HeatmapScreen from '../screens/HeatmapScreen';
 import AdminNavigator from './AdminNavigator';
+import AdminAgentChatScreen from '../screens/admin/AdminAgentChatScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -177,14 +178,22 @@ export default function RootNavigator() {
             headerTitle: 'User Details',
           }}
         />
-        <Stack.Screen
-          name="Settings"
-          component={SettingsScreen}
-          options={{
-            headerShown: true,
-            headerTitle: 'Settings',
-          }}
-        />
+          <Stack.Screen
+            name="Settings"
+            component={SettingsScreen}
+            options={{
+              headerShown: true,
+              headerTitle: 'Settings',
+            }}
+          />
+          <Stack.Screen
+            name={ADMIN_AGENT_CHAT}
+            component={AdminAgentChatScreen}
+            options={{
+              headerShown: true,
+              headerTitle: 'Support Agent',
+            }}
+          />
 
         {/* --- Flow screens on top of tabs --- */}
         <Stack.Screen name="Camera" component={CameraScreen} />

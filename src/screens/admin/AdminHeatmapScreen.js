@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -57,17 +57,10 @@ const mockAdminObservations = [
 export default function AdminHeatmapScreen() {
   const [observations, setObservations] = useState(mockAdminObservations);
   const [viewMode, setViewMode] = useState('heatmap');
-  const [selectedObservationId, setSelectedObservationId] = useState(null);
+  const [selectedObservation, setSelectedObservation] = useState(null);
   const navigation = useNavigation();
   const route = useRoute();
-
-  const selectedObservation = useMemo(
-    () =>
-      selectedObservationId
-        ? observations.find((obs) => obs.observation_id === selectedObservationId) ?? null
-        : null,
-    [selectedObservationId, observations]
-  );
+  const mapRef = useRef(null);
 
   const filteredObservations = useMemo(
     () =>
@@ -97,6 +90,11 @@ export default function AdminHeatmapScreen() {
           : item
       )
     );
+    setSelectedObservation((prev) =>
+      prev && prev.observation_id === observation_id
+        ? { ...prev, is_masked: !prev.is_masked }
+        : prev
+    );
   };
 
   const HEATMAP_RADIUS = Platform.OS === 'android' ? 40 : 60;
@@ -124,15 +122,36 @@ export default function AdminHeatmapScreen() {
       return [...prev, incomingObservation];
     });
 
-    setSelectedObservationId(incomingObservation.observation_id);
+    setSelectedObservation((prev) => {
+      if (prev && prev.observation_id === incomingObservation.observation_id) {
+        return { ...prev, ...incomingObservation };
+      }
+      return { ...incomingObservation };
+    });
     setViewMode('heatmap');
+  }, [incomingObservation]);
+
+  useEffect(() => {
+    if (!selectedObservation || !mapRef.current) {
+      return;
+    }
+
+    mapRef.current.animateToRegion(
+      {
+        latitude: selectedObservation.location_latitude,
+        longitude: selectedObservation.location_longitude,
+        latitudeDelta: 0.25,
+        longitudeDelta: 0.25,
+      },
+      600
+    );
     navigation.setParams({ selectedObservation: undefined });
-  }, [incomingObservation, navigation]);
+  }, [selectedObservation, navigation]);
 
   const handleChoosePlant = () => {
     navigation.navigate(ADMIN_ENDANGERED, {
       origin: 'AdminHeatmap',
-      selectedObservationId,
+      selectedObservationId: selectedObservation?.observation_id,
     });
   };
 
@@ -195,7 +214,8 @@ export default function AdminHeatmapScreen() {
         </View>
 
         <View style={styles.mapWrapper}>
-          <MapView
+        <MapView
+          ref={mapRef}
             style={styles.map}
             initialRegion={{
               latitude: 1.55,

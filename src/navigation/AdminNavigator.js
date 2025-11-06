@@ -9,6 +9,7 @@ import AdminFlagUnsureScreen from '../screens/admin/AdminFlagUnsureScreen';
 import AdminHeatmapScreen from '../screens/admin/AdminHeatmapScreen';
 import AdminIotScreen from '../screens/admin/AdminIotScreen';
 import { ADMIN_USERS, ADMIN_FLAG_UNSURE, ADMIN_HEATMAP, ADMIN_IOT } from './routes';
+import AdminSupportAgent from '../screens/admin/components/AdminSupportAgent';
 
 const Drawer = createDrawerNavigator();
 
@@ -50,9 +51,9 @@ function AdminDrawerContent(props) {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.drawerListWrapper}>
-        <DrawerItemList {...props} />
-      </View>
+        <View style={styles.drawerListWrapper}>
+          <DrawerItemList {...props} />
+        </View>
 
       <View style={styles.drawerFooter}>
         <Text style={styles.footerText}>SmartPlant Admin Console</Text>
@@ -66,25 +67,21 @@ const drawerScreens = [
   {
     name: ADMIN_USERS,
     label: 'Users',
-    icon: 'people-outline',
     component: AdminUsersScreen,
   },
   {
     name: ADMIN_FLAG_UNSURE,
     label: 'Flag Unsure',
-    icon: 'flag-outline',
     component: AdminFlagUnsureScreen,
   },
   {
     name: ADMIN_HEATMAP,
     label: 'Heatmap',
-    icon: 'map-outline',
     component: AdminHeatmapScreen,
   },
   {
     name: ADMIN_IOT,
     label: 'IoT Monitoring',
-    icon: 'pulse-outline',
     component: AdminIotScreen,
   },
 ];
@@ -101,27 +98,31 @@ export default function AdminNavigator() {
         headerShadowVisible: false,
         sceneContainerStyle: { backgroundColor: '#FFFFFF' },
         drawerType: 'front',
-        drawerStyle: { width: 256, backgroundColor: '#FFFFFF' },
-        drawerInactiveTintColor: '#51606C',
-        drawerActiveTintColor: '#1E88E5',
-        drawerActiveBackgroundColor: '#E6F2FE',
-        drawerLabelStyle: { fontSize: 15, fontWeight: '500', marginLeft: -12 },
-        drawerItemStyle: { borderRadius: 10, marginVertical: 2 },
+          drawerStyle: { width: 256, backgroundColor: '#FFFFFF', paddingVertical: 0 },
+          drawerInactiveTintColor: '#51606C',
+          drawerActiveTintColor: '#FFFFFF',
+          drawerActiveBackgroundColor: '#1E88E5',
+          drawerItemStyle: { marginVertical: 0, borderRadius: 0 },
+          drawerContentContainerStyle: { paddingLeft: 0, paddingRight: 0 },
+          drawerLabelStyle: { fontSize: 15, fontWeight: '500', marginLeft: -12 },
       }}
     >
-      {drawerScreens.map((screen) => (
-        <Drawer.Screen
-          key={screen.name}
-          name={screen.name}
-          component={screen.component}
-          options={{
-            title: screen.label,
-            drawerIcon: ({ color, size }) => (
-              <Ionicons name={screen.icon} size={size} color={color} />
-            ),
-          }}
-        />
-      ))}
+        {drawerScreens.map((screen) => (
+          <Drawer.Screen
+            key={screen.name}
+            name={screen.name}
+            options={{
+              title: screen.label,
+            }}
+          >
+            {(props) => (
+              <View style={{ flex: 1 }}>
+                <screen.component {...props} />
+                <AdminSupportAgent />
+              </View>
+            )}
+          </Drawer.Screen>
+        ))}
     </Drawer.Navigator>
   );
 }
@@ -190,7 +191,7 @@ const styles = StyleSheet.create({
   drawerListWrapper: {
     flex: 1,
     paddingTop: 16,
-    paddingHorizontal: 12,
+    paddingHorizontal: 0,
   },
   drawerFooter: {
     padding: 20,
