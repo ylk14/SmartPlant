@@ -1,0 +1,35 @@
+.topbar {
+  height: 64px;
+  width: 100%;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  position: relative;
+  z-index: 10;
+}
+
+.topbar-left h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.topbar-icon {
+  font-size: 26px;
+  color: #4b5563;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.topbar-icon:hover {
+  color: #111827;
+}
