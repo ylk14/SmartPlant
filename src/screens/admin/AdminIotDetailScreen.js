@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, Image, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 const formatDate = (iso) => {
+  if (!iso) return 'N/A'; // Handle null/undefined dates
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
 };
@@ -45,20 +46,24 @@ export default function AdminIotDetailScreen({ route }) {
     );
   }
 
+  // Ensure 'alerts' is an array, even if it's null/undefined
   const alerts = Array.isArray(device.alerts) ? device.alerts : [];
 
   const formatNumber = (val, digits = 1) => {
     if (typeof val !== 'number' || Number.isNaN(val)) return '--';
     return val.toFixed(digits);
   };
+  
+  // Ensure 'readings' exists before trying to access its properties
+  const readings = device.readings || {};
 
   const sensorCards = [
     {
       key: 'temperature',
       icon: 'thermometer-outline',
       title: 'Temperature',
-      value: formatNumber(device.readings.temperature, 1),
-      unit: '?C',
+      value: formatNumber(readings.temperature, 1),
+      unit: ' °C', // Corrected unit
       helper: alerts.includes('Temperature')
         ? 'Temperature exceeds the optimal window.'
         : 'Within optimal range.',
@@ -68,7 +73,7 @@ export default function AdminIotDetailScreen({ route }) {
       key: 'humidity',
       icon: 'water-outline',
       title: 'Humidity',
-      value: formatNumber(device.readings.humidity, 0),
+      value: formatNumber(readings.humidity, 0),
       unit: '%',
       helper: alerts.includes('Humidity')
         ? 'High humidity detected. Inspect shelter.'
@@ -79,7 +84,7 @@ export default function AdminIotDetailScreen({ route }) {
       key: 'soil_moisture',
       icon: 'leaf-outline',
       title: 'Soil Moisture',
-      value: formatNumber(device.readings.soil_moisture, 0),
+      value: formatNumber(readings.soil_moisture, 0),
       unit: '%',
       helper: alerts.includes('Soil Moisture')
         ? 'Soil moisture outside safe band.'
@@ -90,7 +95,7 @@ export default function AdminIotDetailScreen({ route }) {
       key: 'motion_detected',
       icon: 'walk-outline',
       title: 'Motion',
-      value: device.readings.motion_detected ? 'Detected' : 'None',
+      value: readings.motion_detected ? 'Detected' : 'None',
       unit: '',
       helper: alerts.includes('Motion')
         ? 'Unexpected movement near this device.'
@@ -99,26 +104,27 @@ export default function AdminIotDetailScreen({ route }) {
     },
   ];
 
-  const imageSource = device.photo ? device.photo : require('../../../assets/pitcher.jpg');
+  // 🔧 FIX 1: Your API doesn't provide 'device.photo', so we force the fallback.
+  const imageSource = require('../../../assets/pitcher.jpg');
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <Image source={imageSource} style={styles.photo} resizeMode="cover" />
 
-        <Text style={styles.title}>{device.device_name}</Text>
+        <Text style={styles.title}>{device.device_name || 'Unnamed Device'}</Text>
         <Text style={styles.subtitle}>Device ID: {device.device_id}</Text>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Plant</Text>
-          <Text style={styles.sectionValue}>{device.species}</Text>
+          <Text style={styles.sectionValue}>Species ID: {device.species_id || 'N/A'}</Text>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Location</Text>
-          <Text style={styles.sectionValue}>{device.location.name}</Text>
-          <Text style={styles.sectionMeta}>
-            {device.location.latitude.toFixed(4)}, {device.location.longitude.toFixed(4)}
+          <Text style={styles.sectionValue}>
+            Lat: {device.location?.latitude?.toFixed(4) || 'N/A'}
+            , Long: {device.location?.longitude?.toFixed(4) || 'N/A'}
           </Text>
         </View>
 
@@ -137,6 +143,7 @@ export default function AdminIotDetailScreen({ route }) {
   );
 }
 
+// STYLES (unchanged)
 const styles = StyleSheet.create({
   container: {
     flex: 1,

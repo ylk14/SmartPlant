@@ -1,75 +1,49 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { ADMIN_IOT_DETAIL } from '../../navigation/routes';
-
-const MOCK_IOT_DEVICES = [
-  {
-    device_id: 'DEV-001',
-    device_name: 'Soil Monitor A1',
-    species: 'Rafflesia arnoldii',
-    location: {
-      name: 'Bako National Park',
-      latitude: 1.4667,
-      longitude: 110.3333,
-    },
-    readings: {
-      temperature: 28.4,
-      humidity: 78,
-      soil_moisture: 42,
-      motion_detected: false,
-    },
-    last_updated: '2025-10-21T12:45:00Z',
-    alerts: [],
-  },
-  {
-    device_id: 'DEV-014',
-    device_name: 'Weather Station B3',
-    species: 'Nepenthes rajah',
-    location: {
-      name: 'Santubong Forest Reserve',
-      latitude: 1.595,
-      longitude: 110.345,
-    },
-    readings: {
-      temperature: 24.9,
-      humidity: 91,
-      soil_moisture: 65,
-      motion_detected: true,
-    },
-    last_updated: '2025-10-21T12:41:00Z',
-    alerts: ['Humidity', 'Motion'],
-  },
-  {
-    device_id: 'DEV-020',
-    device_name: 'Trail Camera C2',
-    species: 'Dipterocarpus sarawakensis',
-    location: {
-      name: 'Lambir Hills',
-      latitude: 1.285,
-      longitude: 110.523,
-    },
-    readings: {
-      temperature: 26.8,
-      humidity: 84,
-      soil_moisture: 55,
-      motion_detected: false,
-    },
-    last_updated: '2025-10-21T12:36:00Z',
-    alerts: ['Soil Moisture'],
-  },
-];
+import { fetchSensorData } from '../../../services/api'; // 🔧 FIX 1: IMPORT API
 
 export default function AdminIotScreen() {
   const navigation = useNavigation();
+
+  // ADD STATE FOR LOADING AND REAL DATA
+  const [iotDevices, setIotDevices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // ADD USEEFFECT TO FETCH DATA
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await fetchSensorData(); // Fetches single object
+        if (data) {
+          setIotDevices([data]); // Put the single object into an array
+        } else {
+          setIotDevices([]);
+        }
+      } catch (err) {
+        console.error("Failed to load IoT data:", err);
+        setError("Failed to load IoT data");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  // CONNECT useMemo TO REAL DATA STATE
   const alertDevices = useMemo(
-    () => MOCK_IOT_DEVICES.filter((device) => device.alerts && device.alerts.length > 0),
-    []
+    () => iotDevices.filter((device) => device.alerts && device.alerts.length > 0),
+    [iotDevices]
   );
   const normalDevices = useMemo(
-    () => MOCK_IOT_DEVICES.filter((device) => !device.alerts || device.alerts.length === 0),
-    []
+    () => iotDevices.filter((device) => !device.alerts || device.alerts.length === 0),
+    [iotDevices]
   );
 
   const renderDeviceRow = (item, isAlert = false) => (
@@ -77,8 +51,12 @@ export default function AdminIotScreen() {
       key={item.device_id}
     >
       <View style={styles.cellWide}>
-        <Text style={[styles.plantText, isAlert && styles.alertPlantText]}>{item.species}</Text>
-        <Text style={[styles.metaText, isAlert && styles.alertMetaText]}>{item.location.name}</Text>
+        {/*CHANGED item.species to item.device_name */}
+        <Text style={[styles.plantText, isAlert && styles.alertPlantText]}>{item.device_name}</Text>
+        
+        {/* CHANGED item.location.name to item.node_id (or similar) */}
+        <Text style={[styles.metaText, isAlert && styles.alertMetaText]}>{item.node_id}</Text>
+        
         {isAlert && (
           <Text style={styles.alertDetailText}>Alerts: {item.alerts.join(', ')}</Text>
         )}
@@ -94,6 +72,22 @@ export default function AdminIotScreen() {
       </View>
     </View>
   );
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator size="large" color="#1E88E5" />
+      </SafeAreaView>
+    );
+  }
+  
+  if (error) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Text style={styles.errorText}>{error}</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -127,7 +121,9 @@ export default function AdminIotScreen() {
           renderItem={({ item }) => renderDeviceRow(item)}
           ListEmptyComponent={() => (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>All monitored plants are currently in alert state.</Text>
+              <Text style={styles.emptyStateText}>
+                {alertDevices.length > 0 ? 'All other plants are stable.' : 'No devices found.'}
+              </Text>
             </View>
           )}
         />
@@ -136,11 +132,13 @@ export default function AdminIotScreen() {
   );
 }
 
+// STYLES
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F6F9F4',
     padding: 20,
+    justifyContent: 'center' // Center loading indicator
   },
   headerTitle: {
     fontSize: 24,
@@ -250,6 +248,11 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 13,
     color: '#475467',
+    textAlign: 'center',
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#B91C1C',
     textAlign: 'center',
   },
 });

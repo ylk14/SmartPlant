@@ -1,7 +1,7 @@
 // api.js
 // All backend API connection functions are stored here
 
-const API_BASE_URL = "https://your-backend-server.com/api"; 
+const API_BASE_URL = "http://192.168.88.39:3000/api"; 
 // 🔧 Backend team: replace with your actual base URL later
 
 // ======================
@@ -114,6 +114,34 @@ export const forgotPassword = async (email) => {
     return data;
   } catch (error) {
     console.error("Forgot Password API error:", error);
+    throw error;
+  }
+};
+
+// ======================
+// IOT SENSOR FUNCTIONS
+// ======================
+
+// Fetch all sensor readings
+export const fetchSensorData = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/iot/latest`);
+    if (!response.ok) throw new Error("Failed to fetch sensor data");
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching sensor data:", error);
+    throw error;
+  }
+};
+
+// (Optional) Fetch specific sensor by ID
+export const fetchSensorById = async (sensorId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/iot/lastest/${sensorId}`);
+    if (!response.ok) throw new Error("Failed to fetch sensor detail");
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching sensor detail:", error);
     throw error;
   }
 };
