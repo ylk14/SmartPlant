@@ -11,5 +11,6 @@ export const ADMIN_ENDANGERED = 'AdminEndangeredList';
 export const ADMIN_USER_DETAIL = 'AdminUserDetail';
 export const ADMIN_IOT = 'AdminIot';
 export const ADMIN_IOT_DETAIL = 'AdminIotDetail';
+export const ADMIN_IOT_ANALYTICS = 'AdminIotAnalytics';
 export const ADMIN_FLAG_REVIEW = 'AdminFlagReview';
 export const ADMIN_AGENT_CHAT = 'AdminAgentChat';

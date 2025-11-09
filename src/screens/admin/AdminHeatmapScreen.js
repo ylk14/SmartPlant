@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Alert } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, Heatmap } from 'react-native-maps';
@@ -82,17 +82,17 @@ export default function AdminHeatmapScreen() {
     [filteredObservations]
   );
 
-  const toggleMask = (observation_id) => {
+  const toggleMask = (observation_id, nextValue) => {
     setObservations((prev) =>
       prev.map((item) =>
         item.observation_id === observation_id
-          ? { ...item, is_masked: !item.is_masked }
+          ? { ...item, is_masked: nextValue }
           : item
       )
     );
     setSelectedObservation((prev) =>
       prev && prev.observation_id === observation_id
-        ? { ...prev, is_masked: !prev.is_masked }
+        ? { ...prev, is_masked: nextValue }
         : prev
     );
   };
@@ -318,7 +318,24 @@ export default function AdminHeatmapScreen() {
 
               <TouchableOpacity
                 style={[styles.maskButton, selectedObservation.is_masked ? styles.masked : styles.unmasked]}
-                onPress={() => toggleMask(selectedObservation.observation_id)}
+                  onPress={() => {
+                    const nextValue = !selectedObservation.is_masked;
+                    Alert.alert(
+                      nextValue ? 'Mask Location' : 'Unmask Location',
+                      nextValue
+                        ? 'Hide this plant location from end users?'
+                        : 'Reveal this plant location to end users?',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: nextValue ? 'Mask' : 'Unmask',
+                          style: nextValue ? 'destructive' : 'default',
+                          onPress: () => toggleMask(selectedObservation.observation_id, nextValue),
+                        },
+                      ],
+                      { cancelable: true }
+                    );
+                  }}
               >
                 <Ionicons
                   name={selectedObservation.is_masked ? 'eye-off-outline' : 'eye-outline'}

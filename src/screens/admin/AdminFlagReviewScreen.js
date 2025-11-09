@@ -56,12 +56,28 @@ export default function AdminFlagReviewScreen({ route, navigation }) {
         <View style={styles.actionsRow}>
           <TouchableOpacity
             style={styles.approveButton}
-            onPress={() => Alert.alert('Approved', 'The observation has been approved.')}
+            activeOpacity={0.85}
+            onPress={() =>
+              Alert.alert(
+                'Approve Observation',
+                'Confirm this observation is valid?',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Approve',
+                    style: 'default',
+                    onPress: () => Alert.alert('Approved', 'The observation has been approved.'),
+                  },
+                ],
+                { cancelable: true }
+              )
+            }
           >
             <Text style={styles.approveText}>Approve</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.identifyButton}
+            activeOpacity={0.85}
             onPress={() => {
               setIdentifiedName('');
               setIdentifyVisible(true);
@@ -194,7 +210,7 @@ const styles = StyleSheet.create({
   },
   approveButton: {
     flex: 1,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#166534',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -208,7 +224,7 @@ const styles = StyleSheet.create({
   },
   identifyButton: {
     flex: 1,
-    backgroundColor: '#1E88E5',
+    backgroundColor: '#1D4ED8',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',

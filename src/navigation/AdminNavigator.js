@@ -107,22 +107,25 @@ export default function AdminNavigator() {
           drawerLabelStyle: { fontSize: 15, fontWeight: '500', marginLeft: -12 },
       }}
     >
-        {drawerScreens.map((screen) => (
-          <Drawer.Screen
-            key={screen.name}
-            name={screen.name}
-            options={{
-              title: screen.label,
-            }}
-          >
-            {(props) => (
-              <View style={{ flex: 1 }}>
-                <screen.component {...props} />
-                <AdminSupportAgent />
-              </View>
-            )}
-          </Drawer.Screen>
-        ))}
+ {drawerScreens.map((screen) => {
+          const ScreenComponent = screen.component;
+          return (
+            <Drawer.Screen
+              key={screen.name}
+              name={screen.name}
+              options={{
+                title: screen.label,
+              }}
+            >
+              {(props) => (
+                <View style={{ flex: 1 }}>
+                  <ScreenComponent {...props} />
+                  <AdminSupportAgent />
+                </View>
+              )}
+            </Drawer.Screen>
+          );
+        })}
     </Drawer.Navigator>
   );
 }

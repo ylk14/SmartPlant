@@ -52,8 +52,8 @@ export default function AdminFlagUnsureScreen() {
       <View style={styles.table}>
         <View style={[styles.row, styles.headerRow]}>
           <Text style={[styles.cellWide, styles.headerText]}>Plant</Text>
-          <Text style={[styles.cell, styles.headerText]}>Confidence</Text>
-          <Text style={[styles.cellAction, styles.headerText]}>Action</Text>
+            <Text style={[styles.cell, styles.headerText, styles.cellScoreHeader]}>Score</Text>
+            <Text style={[styles.cellAction, styles.headerText, styles.cellActionHeader]}>Action</Text>
         </View>
 
         <FlatList
@@ -64,9 +64,9 @@ export default function AdminFlagUnsureScreen() {
             <View style={styles.row}>
               <View style={styles.cellWide}>
                 <Text style={styles.plantText}>{item.plant_name}</Text>
-                <Text style={styles.metaText}>Obs {item.observation_id} ? {item.location}</Text>
+                <Text style={styles.metaText}>{item.location}</Text>
               </View>
-              <Text style={styles.cell}>{toPercent(item.confidence)}</Text>
+              <Text style={[styles.cell, styles.cellScoreValue]}>{toPercent(item.confidence)}</Text>
               <View style={styles.cellAction}>
                 <TouchableOpacity
                   style={styles.reviewButton}
@@ -106,6 +106,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   row: {
     flexDirection: 'row',
@@ -115,6 +120,8 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     backgroundColor: '#F1F5F9',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
   separator: {
     height: 1,
@@ -124,6 +131,7 @@ const styles = StyleSheet.create({
     flex: 0.9,
     fontSize: 13,
     color: '#334155',
+    textAlign: 'left',
   },
   cellWide: {
     flex: 1.8,
@@ -158,5 +166,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  cellScoreHeader: {
+    textAlign: 'right',
+    paddingRight: 12,
+  },
+  cellScoreValue: {
+    textAlign: 'right',
+    paddingRight: 12,
+  },
+  cellActionHeader: {
+    textAlign: 'right',
+    paddingRight: 4,
   },
 });

@@ -1,94 +1,114 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-// ⬇️ *** IMPORT ScrollView and RefreshControl *** ⬇️
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, ScrollView, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { ADMIN_IOT_DETAIL } from '../../navigation/routes';
-import { fetchAllDeviceData, resolveAlertsForDevice } from '../../../services/api';
+
+const MOCK_IOT_DEVICES = [
+  {
+    device_id: 'DEV-001',
+    device_name: 'Soil Monitor A1',
+    species: 'Rafflesia arnoldii',
+    location: {
+      name: 'Bako National Park',
+      latitude: 1.4667,
+      longitude: 110.3333,
+    },
+    readings: {
+      temperature: 28.4,
+      humidity: 78,
+      soil_moisture: 42,
+      motion_detected: false,
+    },
+    last_updated: '2025-10-21T12:45:00Z',
+    alerts: [],
+  },
+  {
+    device_id: 'DEV-014',
+    device_name: 'Weather Station B3',
+    species: 'Nepenthes rajah',
+    location: {
+      name: 'Santubong Forest Reserve',
+      latitude: 1.595,
+      longitude: 110.345,
+    },
+    readings: {
+      temperature: 24.9,
+      humidity: 91,
+      soil_moisture: 65,
+      motion_detected: true,
+    },
+    last_updated: '2025-10-21T12:41:00Z',
+    alerts: ['Humidity', 'Motion'],
+  },
+  {
+    device_id: 'DEV-020',
+    device_name: 'Trail Camera C2',
+    species: 'Dipterocarpus sarawakensis',
+    location: {
+      name: 'Lambir Hills',
+      latitude: 1.285,
+      longitude: 110.523,
+    },
+    readings: {
+      temperature: 26.8,
+      humidity: 84,
+      soil_moisture: 55,
+      motion_detected: false,
+    },
+    last_updated: '2025-10-21T12:36:00Z',
+    alerts: ['Soil Moisture'],
+  },
+];
 
 export default function AdminIotScreen() {
   const navigation = useNavigation();
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const [iotDevices, setIotDevices] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [refreshing, setRefreshing] = useState(false); // <-- NEW STATE
+  const filteredDevices = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
 
-  // ⬇️ *** UPDATED: Simplified data loading function *** ⬇️
-  const loadData = async () => {
-    try {
-      setError(null);
-      const deviceData = await fetchAllDeviceData();
-      setIotDevices(deviceData || []);
-    } catch (err) {
-      console.error("Failed to load data:", err);
-      setError("Failed to load dashboard data");
-    }
-  };
+    return MOCK_IOT_DEVICES.slice()
+      .filter((device) => {
+        if (!normalizedQuery) return true;
+        const haystack = [
+          device.device_name,
+          device.device_id,
+          device.species,
+          device.location?.name,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(normalizedQuery);
+      })
+      .sort((a, b) => a.device_name.localeCompare(b.device_name));
+  }, [searchQuery]);
 
-  // ⬇️ *** UPDATED: useEffect now handles initial load AND auto-refresh *** ⬇️
-  useEffect(() => {
-    const initialLoad = async () => {
-      setLoading(true);
-      await loadData();
-      setLoading(false);
-    };
-    
-    initialLoad(); // Run initial load
-
-    // Set up the 5-minute auto-refresh
-    const intervalId = setInterval(loadData, 30000); // 300,000 ms = 0.5 minute
-
-    // Clear interval on unmount
-    return () => clearInterval(intervalId);
-  }, []);
-
-  // ⬇️ *** NEW: Function for manual pull-to-refresh *** ⬇️
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
-  };
-
-  // ⬇️ *** UPDATED: handleResolveDeviceAlerts just re-fetches data *** ⬇️
-  const handleResolveDeviceAlerts = async (deviceId) => {
-    try {
-      await resolveAlertsForDevice(deviceId);
-      await loadData(); // Just re-fetch, don't show loading indicator
-    } catch (err) {
-      console.error("Failed to resolve alert:", err);
-    }
-  };
-
-  // Memoized lists (Unchanged)
   const alertDevices = useMemo(
-    () => iotDevices.filter((device) => device.alerts),
-    [iotDevices]
-  );
+      () => filteredDevices.filter((device) => device.alerts && device.alerts.length > 0),
+      [filteredDevices]
+    );
   const normalDevices = useMemo(
-    () => iotDevices.filter((device) => !device.alerts),
-    [iotDevices]
-  );
+      () => filteredDevices.filter((device) => !device.alerts || device.alerts.length === 0),
+      [filteredDevices]
+    );
+  const noMatches = filteredDevices.length === 0;
 
-  // renderDeviceRow (Unchanged from our last fix)
   const renderDeviceRow = (item, isAlert = false) => (
-    <View style={[styles.row, isAlert && styles.alertRow]} key={item.device_id}>
+    <View style={[styles.row, isAlert && styles.alertRow]}
+      key={item.device_id}
+    >
       <View style={styles.cellWide}>
-        <Text style={[styles.plantText, isAlert && styles.alertPlantText]}>{item.species_id}</Text>
+        <Text style={[styles.plantText, isAlert && styles.alertPlantText]}>{item.species}</Text>
+        <Text style={[styles.metaText, isAlert && styles.alertMetaText]}>{item.location.name}</Text>
         {isAlert && (
-          <Text style={styles.alertDetailText}>Alerts: {item.alerts}</Text>
+          <Text style={styles.alertDetailText}>Alerts: {item.alerts.join(', ')}</Text>
         )}
       </View>
       <Text style={[styles.cell, isAlert && styles.alertCellText]}>{item.device_id}</Text>
       <View style={styles.cellAction}>
-        {isAlert && (
-          <TouchableOpacity
-            style={styles.resolveButton}
-            onPress={() => handleResolveDeviceAlerts(item.device_id_raw)}
-          >
-            <Text style={styles.resolveButtonText}>Resolve</Text>
-          </TouchableOpacity>
-        )}
         <TouchableOpacity
           style={styles.viewButton}
           onPress={() => navigation.navigate(ADMIN_IOT_DETAIL, { device: item })}
@@ -99,103 +119,87 @@ export default function AdminIotScreen() {
     </View>
   );
 
-  // Main loading indicator
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <ActivityIndicator size="large" color="#1E88E5" />
-      </SafeAreaView>
-    );
-  }
-  
-  // Error state
-  if (error) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <Text style={styles.errorText}>{error}</Text>
-      </SafeAreaView>
-    );
-  }
-
-  // ⬇️ *** UPDATED: Return statement now uses ScrollView *** ⬇️
   return (
     <SafeAreaView style={styles.container}>
-      {/* Headers are outside the ScrollView */}
       <Text style={styles.headerTitle}>IoT Monitoring</Text>
-      <Text style={styles.headerSubtitle}>
-        Overview of active sensors in the field. Tap `View` to drill into analytics.
-      </Text>
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={16} color="#64748B" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by device, plant, or location"
+            placeholderTextColor="#94A3B8"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setSearchQuery('')}
+              style={styles.clearButton}
+              accessibilityLabel="Clear search"
+            >
+              <Ionicons name="close-circle" size={18} color="#94A3B8" />
+            </TouchableOpacity>
+          )}
+        </View>
 
-      {/* ScrollView wraps BOTH lists and provides pull-to-refresh */}
-      <ScrollView
-        style={styles.listContainer}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
-        {/* --- Alerted Device List --- */}
-        {alertDevices.length > 0 && (
-          <View style={[styles.table, styles.alertTable]}>
-            <View style={[styles.row, styles.headerRow, styles.alertHeaderRow]}>
-              <Text style={[styles.cellWide, styles.headerText, styles.alertHeaderText]}>Plant</Text>
-              <Text style={[styles.cell, styles.headerText, styles.alertHeaderText]}>Device ID</Text>
-              <Text style={[styles.cellAction, styles.headerText, styles.alertHeaderText]}>Action</Text>
-            </View>
-            {/* Note: This map is fine since alerts are usually few. */}
-            {alertDevices.map((item) => renderDeviceRow(item, true))}
+        {noMatches ? (
+          <View style={[styles.table, styles.emptyCard]}>
+            <Ionicons name="hardware-chip-outline" size={24} color="#94A3B8" />
+            <Text style={styles.emptyCardTitle}>No devices found</Text>
+            <Text style={styles.emptyCardSubtitle}>Try a different search term or clear the filter.</Text>
           </View>
-        )}
-
-        {/* --- Normal Device List --- */}
-        <View style={styles.table}>
-          <View style={[styles.row, styles.headerRow]}>
-            <Text style={[styles.cellWide, styles.headerText]}>Plant</Text>
-            <Text style={[styles.cell, styles.headerText]}>Device ID</Text>
-            <Text style={[styles.cellAction, styles.headerText]}>Action</Text>
-          </View>
-
-          <FlatList
-            data={normalDevices}
-            keyExtractor={(item) => item.device_id}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
-            renderItem={({ item }) => renderDeviceRow(item, false)}
-            // This prevents nested scroll warnings and lets the parent ScrollView handle all scrolling
-            scrollEnabled={false} 
-            ListEmptyComponent={() => (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>
-                  {alertDevices.length > 0 ? 'All other plants are stable.' : 'No devices found.'}
-                </Text>
+        ) : (
+          <>
+            {alertDevices.length > 0 && (
+              <View style={[styles.table, styles.alertTable]}>
+                <View style={[styles.row, styles.headerRow, styles.alertHeaderRow]}>
+                  <Text style={[styles.cellWide, styles.headerText, styles.alertHeaderText]}>Plant</Text>
+                  <Text style={[styles.cell, styles.headerText, styles.alertHeaderText]}>Device ID</Text>
+                  <Text style={[styles.cellAction, styles.headerText, styles.alertHeaderText]}>Action</Text>
+                </View>
+                {alertDevices.map((item) => renderDeviceRow(item, true))}
               </View>
             )}
-          />
-        </View>
-      </ScrollView>
+
+            <View style={styles.table}>
+              <View style={[styles.row, styles.headerRow]}>
+                <Text style={[styles.cellWide, styles.headerText]}>Plant</Text>
+                <Text style={[styles.cell, styles.headerText]}>Device ID</Text>
+                <Text style={[styles.cellAction, styles.headerText]}>Action</Text>
+              </View>
+
+              <FlatList
+                data={normalDevices}
+                keyExtractor={(item) => item.device_id}
+                ItemSeparatorComponent={() => <View style={styles.separator} />}
+                renderItem={({ item }) => renderDeviceRow(item)}
+                ListEmptyComponent={() => (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyStateText}>
+                      {alertDevices.length > 0
+                        ? 'All matching devices are currently in alert state.'
+                        : 'No non-alert devices match your search.'}
+                    </Text>
+                  </View>
+                )}
+              />
+            </View>
+          </>
+        )}
     </SafeAreaView>
   );
 }
 
-// ⬇️ *** UPDATED: Styles (added listContainer) *** ⬇️
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F6F9F4',
     padding: 20,
   },
-  // New style to make the ScrollView fill the space
-  listContainer: {
-    flex: 1,
-  },
   headerTitle: {
     fontSize: 24,
     fontWeight: '700',
     color: '#1F2A37',
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#4B5563',
-    marginTop: 4,
-    marginBottom: 16,
   },
   table: {
     backgroundColor: '#FFFFFF',
@@ -235,10 +239,7 @@ const styles = StyleSheet.create({
   },
   cellAction: {
     width: 120,
-    flexDirection: 'row', 
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    gap: 8, 
+    alignItems: 'flex-end',
   },
   headerText: {
     fontWeight: '700',
@@ -278,7 +279,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#B91C1C',
-    textTransform: 'capitalize', 
   },
   viewButton: {
     paddingVertical: 6,
@@ -291,17 +291,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  resolveButton: {
-    backgroundColor: '#D1FAE5', 
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-  },
-  resolveButtonText: {
-    color: '#065F46', 
-    fontSize: 12,
-    fontWeight: '600',
-  },
   emptyState: {
     paddingVertical: 18,
     paddingHorizontal: 16,
@@ -311,9 +300,41 @@ const styles = StyleSheet.create({
     color: '#475467',
     textAlign: 'center',
   },
-  errorText: {
-    fontSize: 14,
-    color: '#B91C1C',
-    textAlign: 'center',
-  },
+    searchBar: {
+      marginTop: 16,
+      marginBottom: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 14,
+      backgroundColor: '#FFFFFF',
+      borderWidth: 1,
+      borderColor: '#E2E8F0',
+      gap: 8,
+    },
+    searchInput: {
+      flex: 1,
+      fontSize: 13.5,
+      color: '#0F172A',
+    },
+    clearButton: {
+      padding: 4,
+    },
+    emptyCard: {
+      paddingVertical: 32,
+      paddingHorizontal: 20,
+      alignItems: 'center',
+      gap: 10,
+    },
+    emptyCardTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#1F2937',
+    },
+    emptyCardSubtitle: {
+      fontSize: 13,
+      color: '#6B7280',
+      textAlign: 'center',
+    },
 });
