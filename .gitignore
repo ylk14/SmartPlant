@@ -2,6 +2,8 @@
 
 # dependencies
 node_modules/
+npm-debug.log*
+yarn-error.log*
 
 # Expo
 .expo/
@@ -39,3 +41,12 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+
+# If you ever export builds locally
+*.apk
+*.aab
+*.ipa
