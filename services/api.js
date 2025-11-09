@@ -134,14 +134,56 @@ export const fetchSensorData = async () => {
   }
 };
 
-// (Optional) Fetch specific sensor by ID
-export const fetchSensorById = async (sensorId) => {
+export const fetchAllDeviceData = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/iot/lastest/${sensorId}`);
-    if (!response.ok) throw new Error("Failed to fetch sensor detail");
+    const response = await fetch(`${API_BASE_URL}/devices/all`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch all device data');
+    }
+    return await response.json(); // This will be an array
+  } catch (error) {
+    console.error("Error fetching all device data:", error);
+    throw error;
+  }
+};
+
+export const postChatMessage = async (query) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || 'Failed to get chat response');
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error("Error in postChatMessage:", error);
+    throw error;
+  }
+};
+
+export const resolveAlertsForDevice = async (deviceId) => {
+  try {
+    // Note: deviceId here is the raw ID (e.g., 1, 2)
+    const response = await fetch(`${API_BASE_URL}/alerts/resolve/device/${deviceId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!response.ok) {
+      throw new Error('Failed to resolve alerts for device');
+    }
     return await response.json();
   } catch (error) {
-    console.error("Error fetching sensor detail:", error);
+    console.error("Error resolving alerts for device:", error);
     throw error;
   }
 };

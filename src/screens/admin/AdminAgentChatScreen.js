@@ -12,36 +12,10 @@ import {
   Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
-const MOCK_CONVERSATION = [
-  {
-    id: 'msg-001',
-    sender: 'agent',
-    content: 'Hi Flora Admin! I can help triage alerts, summarize reports, or draft responses.',
-    timestamp: '10:14 AM',
-  },
-  {
-    id: 'msg-002',
-    sender: 'admin',
-    content: 'Any critical IoT incidents in the past hour?',
-    timestamp: '10:15 AM',
-  },
-  {
-    id: 'msg-003',
-    sender: 'agent',
-    content: 'Yes. Two Nepenthes sensors flagged humidity spikes. I recommend dispatching Ranger Sam to inspect.',
-    timestamp: '10:15 AM',
-  },
-];
-
-const AGENT_SUGGESTIONS = [
-  'Summarize latest flag unsure queue',
-  'Draft response for IoT alert',
-  'Generate weekly endangered report',
-];
+import { postChatMessage } from '../../../services/api'; // <--- IMPORT YOUR API
 
 export default function AdminAgentChatScreen() {
-  const [messages, setMessages] = useState(MOCK_CONVERSATION);
+  const [messages, setMessages] = useState([]); // <--- Start with empty array
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const typingAnim = useRef(new Animated.Value(0)).current;
@@ -50,82 +24,94 @@ export default function AdminAgentChatScreen() {
 
   const reversed = useMemo(() => [...messages].reverse(), [messages]);
 
-  const handleSend = (preset) => {
+  // ⬇️ *** THIS FUNCTION IS NOW ASYNC AND CALLS THE API *** ⬇️
+  const handleSend = async (preset) => {
     const text = (preset ?? input).trim();
-    if (!text) return;
+    if (!text || isTyping) return;
 
     const now = new Date();
     const timestamp = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `msg-${prev.length + 1}`,
-        sender: 'admin',
-        content: text,
-        timestamp,
-      },
-      {
-        id: `msg-${prev.length + 2}`,
-        sender: 'agent',
-        content: "I'm routing that request. Expect a draft summary shortly.",
-        timestamp,
-      },
-    ]);
+    // 1. Add the user's message immediately
+    const userMessage = {
+      id: `msg-${messages.length + 1}`,
+      sender: 'admin',
+      content: text,
+      timestamp,
+    };
+    setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setIsTyping(true);
-
-    if (typingLoopRef.current) {
-      typingLoopRef.current.stop();
-    }
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-
+    
+    // --- Start typing animation ---
+    if (typingLoopRef.current) typingLoopRef.current.stop();
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    
     typingLoopRef.current = Animated.loop(
       Animated.sequence([
-        Animated.timing(typingAnim, {
-          toValue: 1,
-          duration: 260,
-          useNativeDriver: true,
-        }),
-        Animated.timing(typingAnim, {
-          toValue: 2,
-          duration: 260,
-          useNativeDriver: true,
-        }),
-        Animated.timing(typingAnim, {
-          toValue: 3,
-          duration: 260,
-          useNativeDriver: true,
-        }),
-        Animated.timing(typingAnim, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
+        Animated.timing(typingAnim, { toValue: 1, duration: 260, useNativeDriver: true }),
+        Animated.timing(typingAnim, { toValue: 2, duration: 260, useNativeDriver: true }),
+        Animated.timing(typingAnim, { toValue: 3, duration: 260, useNativeDriver: true }),
+        Animated.timing(typingAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
       ])
     );
-
+    
     typingAnim.setValue(0);
     typingLoopRef.current.start();
+    // -----------------------------
 
-    typingTimeoutRef.current = setTimeout(() => {
+    try {
+      // 2. Call the backend API
+      const { reply } = await postChatMessage(text);
+      
+      // 3. Add the AI's response
+      const agentMessage = {
+        id: `msg-${messages.length + 2}`,
+        sender: 'agent',
+        content: reply || "Sorry, I couldn't process that.",
+        timestamp,
+      };
+      setMessages((prev) => [...prev, agentMessage]);
+
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      // Add an error message to the chat
+      const errorMessage = {
+        id: `msg-${messages.length + 2}`,
+        sender: 'agent',
+        content: `Error: ${error.message}`,
+        timestamp,
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      // 4. Stop typing animation
       setIsTyping(false);
       typingLoopRef.current?.stop();
       typingLoopRef.current = null;
       typingAnim.setValue(0);
-    }, 2000);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    }
   };
 
   useEffect(() => {
+    // Add an initial greeting message from the agent
+    setMessages([
+      {
+        id: 'msg-001',
+        sender: 'agent',
+        content: 'Hi Flora Admin! I can help triage alerts, summarize reports, or draft responses. Ask me about the current sensor status.',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      },
+    ]);
+
+    // Cleanup logic
     return () => {
       typingLoopRef.current?.stop();
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
     };
-  }, []);
+  }, []); // <-- Empty array means this runs only once on mount
 
   return (
     <SafeAreaView style={styles.container}>
@@ -174,8 +160,8 @@ export default function AdminAgentChatScreen() {
                     isAgent ? styles.agentBubble : styles.adminBubble,
                   ]}
                 >
-                  <Text style={styles.messageText}>{item.content}</Text>
-                  <Text style={styles.messageTimestamp}>{item.timestamp}</Text>
+                  <Text style={isAgent ? styles.agentMessageText : styles.adminMessageText}>{item.content}</Text>
+                  <Text style={isAgent ? styles.agentTimestamp : styles.adminTimestamp}>{item.timestamp}</Text>
                 </View>
                 {!isAgent && (
                   <View style={styles.avatarAdmin}>
@@ -224,19 +210,6 @@ export default function AdminAgentChatScreen() {
           }
         />
 
-        <View style={styles.suggestionsRow}>
-          {AGENT_SUGGESTIONS.map((suggestion) => (
-            <TouchableOpacity
-              key={suggestion}
-              style={styles.suggestionChip}
-              activeOpacity={0.8}
-              onPress={() => handleSend(suggestion)}
-            >
-              <Ionicons name="flash-outline" size={14} color="#2563EB" />
-              <Text style={styles.suggestionText}>{suggestion}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
 
         <View style={styles.inputBar}>
           <TextInput
@@ -251,6 +224,7 @@ export default function AdminAgentChatScreen() {
             style={styles.sendButton}
             activeOpacity={0.8}
             onPress={() => handleSend()}
+            disabled={isTyping} // <-- Optional: disable send button while typing
           >
             <Ionicons name="send" size={18} color="#FFFFFF" />
           </TouchableOpacity>
@@ -260,6 +234,7 @@ export default function AdminAgentChatScreen() {
   );
 }
 
+// ⬇️ *** STYLES (with minor fixes for text color) *** ⬇️
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
@@ -384,14 +359,25 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#1D4ED8',
   },
-  messageText: {
+  agentMessageText: { // <--- Fix: agent text
     fontSize: 13.5,
     color: '#0F172A',
   },
-  messageTimestamp: {
+  adminMessageText: { // <--- Fix: admin text
+    fontSize: 13.5,
+    color: '#FFFFFF',
+  },
+  agentTimestamp: { // <--- Fix: agent timestamp
     marginTop: 6,
     fontSize: 11,
     color: '#64748B',
+    textAlign: 'left',
+  },
+  adminTimestamp: { // <--- Fix: admin timestamp
+    marginTop: 6,
+    fontSize: 11,
+    color: '#BFDBFE',
+    textAlign: 'right',
   },
   suggestionsRow: {
     paddingHorizontal: 20,

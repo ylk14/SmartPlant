@@ -1,68 +1,94 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+// ⬇️ *** IMPORT ScrollView and RefreshControl *** ⬇️
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, ScrollView, RefreshControl } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { ADMIN_IOT_DETAIL } from '../../navigation/routes';
-import { fetchSensorData } from '../../../services/api'; // 🔧 FIX 1: IMPORT API
+import { fetchAllDeviceData, resolveAlertsForDevice } from '../../../services/api';
 
 export default function AdminIotScreen() {
   const navigation = useNavigation();
 
-  // ADD STATE FOR LOADING AND REAL DATA
   const [iotDevices, setIotDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false); // <-- NEW STATE
 
-  // ADD USEEFFECT TO FETCH DATA
+  // ⬇️ *** UPDATED: Simplified data loading function *** ⬇️
+  const loadData = async () => {
+    try {
+      setError(null);
+      const deviceData = await fetchAllDeviceData();
+      setIotDevices(deviceData || []);
+    } catch (err) {
+      console.error("Failed to load data:", err);
+      setError("Failed to load dashboard data");
+    }
+  };
+
+  // ⬇️ *** UPDATED: useEffect now handles initial load AND auto-refresh *** ⬇️
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await fetchSensorData(); // Fetches single object
-        if (data) {
-          setIotDevices([data]); // Put the single object into an array
-        } else {
-          setIotDevices([]);
-        }
-      } catch (err) {
-        console.error("Failed to load IoT data:", err);
-        setError("Failed to load IoT data");
-      } finally {
-        setLoading(false);
-      }
+    const initialLoad = async () => {
+      setLoading(true);
+      await loadData();
+      setLoading(false);
     };
+    
+    initialLoad(); // Run initial load
 
-    loadData();
+    // Set up the 5-minute auto-refresh
+    const intervalId = setInterval(loadData, 30000); // 300,000 ms = 0.5 minute
+
+    // Clear interval on unmount
+    return () => clearInterval(intervalId);
   }, []);
 
-  // CONNECT useMemo TO REAL DATA STATE
+  // ⬇️ *** NEW: Function for manual pull-to-refresh *** ⬇️
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
+  // ⬇️ *** UPDATED: handleResolveDeviceAlerts just re-fetches data *** ⬇️
+  const handleResolveDeviceAlerts = async (deviceId) => {
+    try {
+      await resolveAlertsForDevice(deviceId);
+      await loadData(); // Just re-fetch, don't show loading indicator
+    } catch (err) {
+      console.error("Failed to resolve alert:", err);
+    }
+  };
+
+  // Memoized lists (Unchanged)
   const alertDevices = useMemo(
-    () => iotDevices.filter((device) => device.alerts && device.alerts.length > 0),
+    () => iotDevices.filter((device) => device.alerts),
     [iotDevices]
   );
   const normalDevices = useMemo(
-    () => iotDevices.filter((device) => !device.alerts || device.alerts.length === 0),
+    () => iotDevices.filter((device) => !device.alerts),
     [iotDevices]
   );
 
+  // renderDeviceRow (Unchanged from our last fix)
   const renderDeviceRow = (item, isAlert = false) => (
-    <View style={[styles.row, isAlert && styles.alertRow]}
-      key={item.device_id}
-    >
+    <View style={[styles.row, isAlert && styles.alertRow]} key={item.device_id}>
       <View style={styles.cellWide}>
-        {/*CHANGED item.species to item.device_name */}
-        <Text style={[styles.plantText, isAlert && styles.alertPlantText]}>{item.device_name}</Text>
-        
-        {/* CHANGED item.location.name to item.node_id (or similar) */}
-        <Text style={[styles.metaText, isAlert && styles.alertMetaText]}>{item.node_id}</Text>
-        
+        <Text style={[styles.plantText, isAlert && styles.alertPlantText]}>{item.species_id}</Text>
         {isAlert && (
-          <Text style={styles.alertDetailText}>Alerts: {item.alerts.join(', ')}</Text>
+          <Text style={styles.alertDetailText}>Alerts: {item.alerts}</Text>
         )}
       </View>
       <Text style={[styles.cell, isAlert && styles.alertCellText]}>{item.device_id}</Text>
       <View style={styles.cellAction}>
+        {isAlert && (
+          <TouchableOpacity
+            style={styles.resolveButton}
+            onPress={() => handleResolveDeviceAlerts(item.device_id_raw)}
+          >
+            <Text style={styles.resolveButtonText}>Resolve</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={styles.viewButton}
           onPress={() => navigation.navigate(ADMIN_IOT_DETAIL, { device: item })}
@@ -73,6 +99,7 @@ export default function AdminIotScreen() {
     </View>
   );
 
+  // Main loading indicator
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -81,6 +108,7 @@ export default function AdminIotScreen() {
     );
   }
   
+  // Error state
   if (error) {
     return (
       <SafeAreaView style={styles.container}>
@@ -89,56 +117,74 @@ export default function AdminIotScreen() {
     );
   }
 
+  // ⬇️ *** UPDATED: Return statement now uses ScrollView *** ⬇️
   return (
     <SafeAreaView style={styles.container}>
+      {/* Headers are outside the ScrollView */}
       <Text style={styles.headerTitle}>IoT Monitoring</Text>
       <Text style={styles.headerSubtitle}>
         Overview of active sensors in the field. Tap `View` to drill into analytics.
       </Text>
 
-      {alertDevices.length > 0 && (
-        <View style={[styles.table, styles.alertTable]}>
-          <View style={[styles.row, styles.headerRow, styles.alertHeaderRow]}>
-            <Text style={[styles.cellWide, styles.headerText, styles.alertHeaderText]}>Plant</Text>
-            <Text style={[styles.cell, styles.headerText, styles.alertHeaderText]}>Device ID</Text>
-            <Text style={[styles.cellAction, styles.headerText, styles.alertHeaderText]}>Action</Text>
-          </View>
-          {alertDevices.map((item) => renderDeviceRow(item, true))}
-        </View>
-      )}
-
-      <View style={styles.table}>
-        <View style={[styles.row, styles.headerRow]}>
-          <Text style={[styles.cellWide, styles.headerText]}>Plant</Text>
-          <Text style={[styles.cell, styles.headerText]}>Device ID</Text>
-          <Text style={[styles.cellAction, styles.headerText]}>Action</Text>
-        </View>
-
-        <FlatList
-          data={normalDevices}
-          keyExtractor={(item) => item.device_id}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-          renderItem={({ item }) => renderDeviceRow(item)}
-          ListEmptyComponent={() => (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>
-                {alertDevices.length > 0 ? 'All other plants are stable.' : 'No devices found.'}
-              </Text>
+      {/* ScrollView wraps BOTH lists and provides pull-to-refresh */}
+      <ScrollView
+        style={styles.listContainer}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {/* --- Alerted Device List --- */}
+        {alertDevices.length > 0 && (
+          <View style={[styles.table, styles.alertTable]}>
+            <View style={[styles.row, styles.headerRow, styles.alertHeaderRow]}>
+              <Text style={[styles.cellWide, styles.headerText, styles.alertHeaderText]}>Plant</Text>
+              <Text style={[styles.cell, styles.headerText, styles.alertHeaderText]}>Device ID</Text>
+              <Text style={[styles.cellAction, styles.headerText, styles.alertHeaderText]}>Action</Text>
             </View>
-          )}
-        />
-      </View>
+            {/* Note: This map is fine since alerts are usually few. */}
+            {alertDevices.map((item) => renderDeviceRow(item, true))}
+          </View>
+        )}
+
+        {/* --- Normal Device List --- */}
+        <View style={styles.table}>
+          <View style={[styles.row, styles.headerRow]}>
+            <Text style={[styles.cellWide, styles.headerText]}>Plant</Text>
+            <Text style={[styles.cell, styles.headerText]}>Device ID</Text>
+            <Text style={[styles.cellAction, styles.headerText]}>Action</Text>
+          </View>
+
+          <FlatList
+            data={normalDevices}
+            keyExtractor={(item) => item.device_id}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            renderItem={({ item }) => renderDeviceRow(item, false)}
+            // This prevents nested scroll warnings and lets the parent ScrollView handle all scrolling
+            scrollEnabled={false} 
+            ListEmptyComponent={() => (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>
+                  {alertDevices.length > 0 ? 'All other plants are stable.' : 'No devices found.'}
+                </Text>
+              </View>
+            )}
+          />
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
-// STYLES
+// ⬇️ *** UPDATED: Styles (added listContainer) *** ⬇️
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F6F9F4',
     padding: 20,
-    justifyContent: 'center' // Center loading indicator
+  },
+  // New style to make the ScrollView fill the space
+  listContainer: {
+    flex: 1,
   },
   headerTitle: {
     fontSize: 24,
@@ -189,7 +235,10 @@ const styles = StyleSheet.create({
   },
   cellAction: {
     width: 120,
-    alignItems: 'flex-end',
+    flexDirection: 'row', 
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 8, 
   },
   headerText: {
     fontWeight: '700',
@@ -229,6 +278,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#B91C1C',
+    textTransform: 'capitalize', 
   },
   viewButton: {
     paddingVertical: 6,
@@ -240,6 +290,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  resolveButton: {
+    backgroundColor: '#D1FAE5', 
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  resolveButtonText: {
+    color: '#065F46', 
+    fontSize: 12,
+    fontWeight: '600',
   },
   emptyState: {
     paddingVertical: 18,
