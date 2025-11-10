@@ -1,32 +1,38 @@
 import React, { useState, useEffect } from "react";
 
-// ✅ Mock data fallback (remove when backend API ready)
+// Mock data fallback (remove when backend API ready)
 const MOCK_USERS = [
   {
     user_id: 1,
     username: "flora_admin",
-    role: "Admin",
     email: "flora@smartplant.dev",
+    role: "Admin",
     phone: "+60 12-345 6789",
     active: true,
+    mfa_enabled: true, 
+    mfa_method: "email", 
     created_at: "2024-06-10T09:45:00Z",
   },
   {
     user_id: 2,
-    username: "ranger.sam",
-    role: "Plant Researcher",
+    username: "ranger.sam", 
     email: "sam@smartplant.dev",
+    role: "Plant Researcher",
     phone: "+60 13-222 1111",
     active: false,
+    mfa_enabled: false,
+    mfa_method: "none",
     created_at: "2024-08-21T14:20:00Z",
   },
   {
     user_id: 3,
     username: "data.joy",
-    role: "User",
     email: "joy@smartplant.dev",
+    role: "User",
     phone: "+60 17-555 6666",
-    active: true,
+    active: false,
+    mfa_enabled: false,
+    mfa_method: "none",
     created_at: "2025-01-04T11:05:00Z",
   },
 ];
@@ -37,8 +43,10 @@ export default function Users() {
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [roleMenu, setRoleMenu] = useState(null);
+  const [mfaSetupUser, setMfaSetupUser] = useState(null);
+  const [showMFASetup, setShowMFASetup] = useState(false);
 
-  // ✅ Load mock first, replace with API later
+  // Load mock first, replace with API later
   useEffect(() => {
     setUsers(MOCK_USERS);
   }, []);
@@ -76,6 +84,7 @@ export default function Users() {
               <th style={styles.th}>Role</th>
               <th style={styles.th}>Status</th>
               <th style={styles.th}>Actions</th>
+              <th style={styles.th}>MFA Status</th>
             </tr>
           </thead>
 
@@ -87,7 +96,7 @@ export default function Users() {
                 <td style={styles.td}>{user.email}</td>
                 <td style={styles.td}>{user.phone}</td>
 
-                {/* ✅ Role Dropdown */}
+                {/* Role Dropdown */}
                 <td style={styles.td}>
                   <div style={styles.roleColumn}>
                     <button
@@ -115,7 +124,7 @@ export default function Users() {
                   </div>
                 </td>
 
-                {/* ✅ Centered status text + toggle */}
+                {/* Centered status text + toggle */}
                 <td style={{ ...styles.td, textAlign: "center" }}>
                   <div style={styles.statusContainer}>
                     <div style={styles.statusText}>
@@ -139,7 +148,27 @@ export default function Users() {
                   </div>
                 </td>
 
-                {/* ✅ Centered View button */}
+                {/* MFA Status and setup button */}
+                <td style={styles.td}>
+                  <div style={styles.mfaContainer}>
+                    <span style={user.mfa_enabled ? styles.mfaEnabled : styles.mfaDisabled}>
+                      {user.mfa_enabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                    {!user.mfa_enabled && (
+                      <button 
+                        style={styles.mfaSetupBtn}
+                        onClick={() => {
+                          setMfaSetupUser(user);
+                          setShowMFASetup(true);
+                        }}
+                      >
+                        Setup MFA
+                      </button>
+                    )}
+                  </div>
+                </td>
+
+                {/* Centered View button */}
                 <td style={{ ...styles.td, textAlign: "center" }}>
                   <button
                     style={styles.viewBtn}
@@ -154,7 +183,7 @@ export default function Users() {
         </table>
       </div>
 
-      {/* ✅ USER DETAIL MODAL */}
+      {/* USER DETAIL MODAL */}
       {selectedUser && (
         <div style={styles.modalOverlay}>
           <div style={styles.modal}>
@@ -193,7 +222,7 @@ export default function Users() {
 }
 
 //
-// ✅ STYLES
+// STYLES
 //
 
 const styles = {
@@ -240,7 +269,7 @@ const styles = {
   },
 
   //
-  // ✅ Role button + dropdown
+  // Role button + dropdown
   //
 
   roleColumn: {
@@ -275,7 +304,7 @@ const styles = {
   },
 
   //
-  // ✅ Status toggle
+  // Status toggle
   //
 
   statusContainer: {
@@ -309,7 +338,7 @@ const styles = {
   },
 
   //
-  // ✅ View button
+  // View button
   //
 
   viewBtn: {
@@ -323,7 +352,7 @@ const styles = {
   },
 
   //
-  // ✅ Modal
+  // Modal
   //
 
   modalOverlay: {

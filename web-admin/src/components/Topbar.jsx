@@ -1,18 +1,26 @@
+// src/components/Topbar.jsx
 import React from "react";
 import "./Topbar.css";
-import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
-import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 
-export default function Topbar() {
+export default function Topbar({ onLogout }) {
   return (
     <div className="topbar">
       <div className="topbar-left">
-        <h3>Admin Dashboard</h3>
+        <h1 className="topbar-title">Admin Dashboard</h1>
       </div>
-
+      
       <div className="topbar-right">
-        <NotificationsNoneIcon className="topbar-icon" />
-        <AccountCircleIcon className="topbar-icon" />
+        <div className="topbar-user">
+          <span className="user-avatar">👤</span>
+          <span className="user-name">Administrator</span>
+        </div>
+        
+        <button 
+          className="topbar-logout-btn"
+          onClick={onLogout}
+        >
+          Logout
+        </button>
       </div>
     </div>
   );
