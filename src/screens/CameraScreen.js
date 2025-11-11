@@ -1,9 +1,10 @@
 // src/screens/CameraScreen.js
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, StyleSheet as RNStyleSheet } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'; // ✅ correct imports
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useNavigation } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker';
 
 export default function CameraScreen() {
   const nav = useNavigation();
@@ -24,6 +25,38 @@ export default function CameraScreen() {
       }
     })();
   }, [permission, requestPermission]);
+
+  const requestLibraryPermissions = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Please allow media library access to choose photos.');
+      return false;
+    }
+    return true;
+  };
+
+  const chooseFromLibrary = async () => {
+    try {
+      const granted = await requestLibraryPermissions();
+      if (!granted) return;
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 1,
+      });
+
+      if (!result.canceled && result.assets?.length) {
+        const asset = result.assets[0];
+        nav.navigate('Preview', {
+          uri: asset.uri,
+          source: 'library',
+          exif: asset.exif ?? null,
+        });
+      }
+    } catch (e) {
+      console.warn('chooseFromLibrary error:', e);
+    }
+  };
 
   const takePicture = async () => {
     try {
@@ -81,8 +114,8 @@ export default function CameraScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Bottom capture controls */}
-      <View style={[styles.bottomBar, { bottom: insets.bottom + 24 }]}>
+        {/* Bottom capture controls */}
+        <View style={[styles.bottomBar, { bottom: insets.bottom + 24 }]}>
         <TouchableOpacity
           onPress={() => setFacing(p => (p === 'back' ? 'front' : 'back'))}
           style={[styles.smallBtn, { left: 24 }]}
@@ -96,6 +129,13 @@ export default function CameraScreen() {
           style={[styles.snapBtn, !isReady && { opacity: 0.6 }]}
           accessibilityLabel="Take picture"
         />
+
+          <TouchableOpacity
+            onPress={chooseFromLibrary}
+            style={[styles.smallBtn, { right: 24 }]}
+          >
+            <Text style={styles.smallBtnText}>Library</Text>
+          </TouchableOpacity>
       </View>
     </SafeAreaView>
   );

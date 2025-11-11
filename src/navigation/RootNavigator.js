@@ -34,11 +34,8 @@ const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
 /** --- Layout constants (tweak freely, no logic impact) --- */
-const BAR_HEIGHT = 68;
-const FAB_SIZE = 84;
-const FAB_BORDER = 6;
-const FAB_RADIUS = FAB_SIZE / 2;
-const FAB_LIFT = FAB_RADIUS + 12;
+const BAR_HEIGHT = 96;
+const SCAN_SIZE = 72;
 
 function Tabs() {
   return (
@@ -50,7 +47,7 @@ function Tabs() {
         tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: '#6DAF7A',
         tabBarInactiveTintColor: '#9AA3A7',
-        tabBarStyle: styles.floatingBar,
+        tabBarStyle: styles.tabBar,
         tabBarItemStyle: styles.tabItem,
       }}
     >
@@ -83,14 +80,14 @@ function Tabs() {
           tabBarButton: (props) => (
             <TouchableOpacity
               {...props}
-              activeOpacity={0.9}
-              style={[styles.fabHitbox, { top: -FAB_LIFT }]}
+              activeOpacity={0.85}
+              style={styles.scanTabButton}
               accessibilityRole="button"
               accessibilityLabel="Identify"
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <View style={styles.fab}>
-                <Ionicons name="scan" size={28} color="#fff" />
+              <View style={styles.scanCircle}>
+                <Ionicons name="scan" size={30} color="#fff" />
               </View>
             </TouchableOpacity>
           ),
@@ -215,55 +212,31 @@ export default function RootNavigator() {
 }
 
 const styles = StyleSheet.create({
-  floatingBar: {
-    position: 'absolute',
-    left: 20,
-    right: 20,
-    bottom: 15,
-    height: BAR_HEIGHT,
-    borderRadius: 22,
-    backgroundColor: '#fff',
-    borderTopWidth: 0,
-    paddingTop: Platform.OS === 'ios' ? 10 : 6,
-    paddingBottom: Platform.OS === 'ios' ? 14 : 10,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOpacity: 0.10,
-        shadowRadius: 14,
-        shadowOffset: { width: 0, height: 8 },
-      },
-      android: { elevation: 12 },
-    }),
+  tabBar: {
+    height: 100,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    paddingBottom: Platform.OS === 'ios' ? 30 : 22,
+    paddingTop: Platform.OS === 'ios' ? 10 : 8,
   },
   tabItem: {
-    height: BAR_HEIGHT,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  fabHitbox: {
-    position: 'absolute',
-    alignSelf: 'center',
-    justifyContent: 'center',
+  scanTabButton: {
+    flex: 1,
+    justifyContent: 'flex-start',
     alignItems: 'center',
+    paddingTop: 10,
   },
-  fab: {
-    width: FAB_SIZE,
-    height: FAB_SIZE,
-    borderRadius: FAB_RADIUS,
+  scanCircle: {
+    width: SCAN_SIZE,
+    height: SCAN_SIZE,
+    borderRadius: SCAN_SIZE / 2,
     backgroundColor: '#6DAF7A',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: FAB_BORDER,
-    borderColor: '#fff',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOpacity: 0.20,
-        shadowRadius: 12,
-        shadowOffset: { width: 0, height: 8 },
-      },
-      android: { elevation: 14 },
-    }),
   },
 });

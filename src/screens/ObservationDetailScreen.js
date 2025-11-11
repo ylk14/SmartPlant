@@ -1,8 +1,19 @@
 // src/screens/ObservationDetailScreen.js
-import React from 'react';
-import { View, Text, Image, StyleSheet, ScrollView, Pressable, Linking } from 'react-native';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  Image,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  Modal,
+  TouchableWithoutFeedback,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import { ROOT_TABS } from '../navigation/routes';
 
 const LOW_CONFIDENCE_THRESHOLD = 60;
 
@@ -17,6 +28,7 @@ function fmtDate(iso) {
 export default function ObservationDetailScreen() {
   const nav = useNavigation();
   const route = useRoute();
+  const [showImage, setShowImage] = useState(false);
 
   // Accept a rich set of params (pass as many as you have)
   const {
@@ -41,9 +53,22 @@ export default function ObservationDetailScreen() {
 
   const openMaps = () => {
     if (latitude != null && longitude != null) {
-      // Works for Android & iOS
-      const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
-      Linking.openURL(url).catch(() => {});
+      const params = {
+        focusLatitude: latitude,
+        focusLongitude: longitude,
+        focusLocationName: locationName || null,
+      };
+
+      const parent = nav.getParent();
+
+      if (parent?.navigate) {
+        parent.navigate(ROOT_TABS, {
+          screen: 'Heatmap',
+          params,
+        });
+      } else {
+        nav.navigate('Heatmap', params);
+      }
     }
   };
 
@@ -66,10 +91,18 @@ export default function ObservationDetailScreen() {
           <Text style={s.headerTitle}>Observation</Text>
           <View style={{ width: 56 }} />
         </View>
-
         {/* Photo */}
         {imageSource ? (
-          <Image source={imageSource} style={s.img} />
+          <Pressable
+            onPress={() => setShowImage(true)}
+            android_ripple={{ color: '#00000014' }}
+            style={s.imgWrapper}
+          >
+            <Image source={imageSource} style={s.img} />
+            <View style={s.expandBadge}>
+              <Ionicons name="expand-outline" size={20} color="#FFFFFF" />
+            </View>
+          </Pressable>
         ) : (
           <View style={[s.img, s.imgPlaceholder]}>
             <Text style={{ color: '#888' }}>No photo</Text>
@@ -97,18 +130,10 @@ export default function ObservationDetailScreen() {
               </View>
             )}
           </View>
-
-          {!!showLow && (
-            <View style={s.bannerLow}>
-              <Text style={s.bannerTxt}>
-                Confidence is low. Consider flagging for human review.
-              </Text>
-            </View>
-          )}
         </View>
 
-        {/* Meta card */}
-        <View style={s.card}>
+        {/* Meta info */}
+        <View style={s.section}>
           <Row label="Captured on" value={fmtDate(createdAt)} />
           {!!uploadedBy && <Row label="Uploaded by" value={uploadedBy} />}
           {!!source && <Row label="Source" value={source} />}
@@ -116,7 +141,9 @@ export default function ObservationDetailScreen() {
           {!!locationName && <Row label="Location" value={locationName} />}
           {(latitude != null && longitude != null) && (
             <View style={[s.row, { alignItems: 'center' }]}>
-              <View style={s.rowLeft}><Text style={s.label}>Coordinates</Text></View>
+              <View style={s.rowLeft}>
+                <Text style={s.label}>Coordinates</Text>
+              </View>
               <View style={s.rowRight}>
                 <Text style={s.value}>{latitude.toFixed(6)}, {longitude.toFixed(6)}</Text>
                 <Pressable style={s.mapsBtn} onPress={openMaps}>
@@ -130,7 +157,7 @@ export default function ObservationDetailScreen() {
 
         {/* Notes */}
         {!!notes && (
-          <View style={s.card}>
+          <View style={s.section}>
             <Text style={s.sectionTitle}>Notes</Text>
             <Text style={s.notes}>{notes}</Text>
           </View>
@@ -141,6 +168,28 @@ export default function ObservationDetailScreen() {
           <Pressable style={s.primaryBtn}><Text style={s.primaryTxt}>Share</Text></Pressable>
         </View> */}
       </ScrollView>
+
+        <Modal
+          visible={showImage}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowImage(false)}
+        >
+          <TouchableWithoutFeedback onPress={() => setShowImage(false)}>
+            <View style={s.modalBackdrop}>
+              <TouchableWithoutFeedback>
+                <View style={s.modalContent}>
+                  {imageSource ? (
+                    <Image source={imageSource} style={s.modalImage} resizeMode="contain" />
+                  ) : null}
+                  <Pressable style={s.modalCloseBtn} onPress={() => setShowImage(false)}>
+                    <Text style={s.modalCloseTxt}>Close</Text>
+                  </Pressable>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
     </SafeAreaView>
   );
 }
@@ -170,10 +219,11 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: '#EEE',
   },
-  backBtn: { paddingHorizontal: 8, paddingVertical: 6 },
-  backTxt: { color: '#2b2b2b', fontWeight: '700' },
-  headerTitle: { fontWeight: '800', color: '#2b2b2b' },
+    backBtn: { paddingHorizontal: 8, paddingVertical: 6 },
+    backTxt: { color: '#2b2b2b', fontWeight: '700' },
+    headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#2b2b2b' },
 
+  imgWrapper: { position: 'relative' },
   img: {
     width: '100%',
     height: 260,
@@ -183,10 +233,18 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  expandBadge: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    padding: 8,
+    borderRadius: 16,
+  },
 
-  titleWrap: { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#F7F7F7' },
-  title: { fontSize: 20, fontWeight: '800', color: '#2b2b2b' },
-  subTitle: { marginTop: 4, color: '#5A6B5F' },
+    titleWrap: { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#F7F7F7' },
+    title: { fontSize: 26, fontWeight: 'bold', color: '#2b2b2b' },
+    subTitle: { marginTop: 4, color: '#5A6B5F', fontSize: 16 },
 
   chipsRow: { flexDirection: 'row', gap: 8, marginTop: 10, flexWrap: 'wrap' },
   chip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: '#E7F2EA' },
@@ -195,21 +253,11 @@ const s = StyleSheet.create({
   chipWarn: { backgroundColor: '#FBE9E9' },
   chipTxt: { fontWeight: '700' },
 
-  bannerLow: {
-    marginTop: 10,
-    padding: 10,
-    backgroundColor: '#FFF6E5',
-    borderRadius: 8,
-  },
-  bannerTxt: { color: '#8A5A00' },
-
-  card: {
-    marginTop: 12,
-    marginHorizontal: 16,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 12,
-    elevation: 1,
+  section: {
+    marginTop: 16,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    gap: 4,
   },
   sectionTitle: { fontWeight: '800', marginBottom: 6, color: '#2b2b2b' },
 
@@ -230,6 +278,34 @@ const s = StyleSheet.create({
     borderRadius: 8,
   },
   mapsTxt: { color: '#2E7D32', fontWeight: '700' },
+
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 16,
+  },
+  modalImage: {
+    width: '100%',
+    height: '70%',
+    borderRadius: 12,
+  },
+  modalCloseBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 999,
+    backgroundColor: '#1E88E5',
+  },
+  modalCloseTxt: {
+    color: '#fff',
+    fontWeight: '700',
+  },
 
   // actionsRow: { paddingHorizontal: 16, marginTop: 12 },
   // primaryBtn: { backgroundColor: '#6DAF7A', paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
