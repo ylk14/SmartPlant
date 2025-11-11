@@ -187,3 +187,17 @@ export const resolveAlertsForDevice = async (deviceId) => {
     throw error;
   }
 };
+
+export const fetchDeviceHistory = async (deviceId, rangeKey) => {
+  try {
+    // deviceId is the raw ID (e.g., 1), rangeKey is '1H', '24H', or '7D'
+    const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/history?range=${rangeKey}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch device history');
+    }
+    return await response.json(); // This will be an array of readings
+  } catch (error) {
+    console.error("Error fetching device history:", error);
+    throw error;
+  }
+};

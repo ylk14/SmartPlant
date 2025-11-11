@@ -1,90 +1,78 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput } from 'react-native';
+import { 
+  View, Text, StyleSheet, FlatList, TouchableOpacity, 
+  TextInput, ScrollView, RefreshControl, ActivityIndicator 
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { ADMIN_IOT_DETAIL } from '../../navigation/routes';
-
-const MOCK_IOT_DEVICES = [
-  {
-    device_id: 'DEV-001',
-    device_name: 'Soil Monitor A1',
-    species: 'Rafflesia arnoldii',
-    location: {
-      name: 'Bako National Park',
-      latitude: 1.4667,
-      longitude: 110.3333,
-    },
-    readings: {
-      temperature: 28.4,
-      humidity: 78,
-      soil_moisture: 42,
-      motion_detected: false,
-    },
-    last_updated: '2025-10-21T12:45:00Z',
-    alerts: [],
-  },
-  {
-    device_id: 'DEV-014',
-    device_name: 'Weather Station B3',
-    species: 'Nepenthes rajah',
-    location: {
-      name: 'Santubong Forest Reserve',
-      latitude: 1.595,
-      longitude: 110.345,
-    },
-    readings: {
-      temperature: 24.9,
-      humidity: 91,
-      soil_moisture: 65,
-      motion_detected: true,
-    },
-    last_updated: '2025-10-21T12:41:00Z',
-    alerts: ['Humidity', 'Motion'],
-  },
-  {
-    device_id: 'DEV-020',
-    device_name: 'Trail Camera C2',
-    species: 'Dipterocarpus sarawakensis',
-    location: {
-      name: 'Lambir Hills',
-      latitude: 1.285,
-      longitude: 110.523,
-    },
-    readings: {
-      temperature: 26.8,
-      humidity: 84,
-      soil_moisture: 55,
-      motion_detected: false,
-    },
-    last_updated: '2025-10-21T12:36:00Z',
-    alerts: ['Soil Moisture'],
-  },
-];
+import { fetchAllDeviceData, resolveAlertsForDevice } from '../../../services/api';
 
 export default function AdminIotScreen() {
   const navigation = useNavigation();
+  
   const [searchQuery, setSearchQuery] = useState('');
+  const [iotDevices, setIotDevices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadData = async () => {
+    try {
+      setError(null);
+      const deviceData = await fetchAllDeviceData();
+      setIotDevices(deviceData || []);
+    } catch (err) {
+      console.error("Failed to load data:", err);
+      setError("Failed to load dashboard data");
+    }
+  };
+
+  useEffect(() => {
+    const initialLoad = async () => {
+      setLoading(true);
+      await loadData();
+      setLoading(false);
+    };
+    initialLoad();
+    // 30-second auto-refresh
+    const intervalId = setInterval(loadData, 30000); 
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
+  const handleResolveDeviceAlerts = async (deviceId) => {
+    try {
+      await resolveAlertsForDevice(deviceId);
+      await loadData();
+    } catch (err) {
+      console.error("Failed to resolve alert:", err);
+    }
+  };
 
   const filteredDevices = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
 
-    return MOCK_IOT_DEVICES.slice()
-      .filter((device) => {
+    return iotDevices.filter((device) => { 
         if (!normalizedQuery) return true;
+        
         const haystack = [
           device.device_name,
           device.device_id,
-          device.species,
-          device.location?.name,
+          device.species_name,
         ]
           .filter(Boolean)
           .join(' ')
           .toLowerCase();
         return haystack.includes(normalizedQuery);
-      })
-      .sort((a, b) => a.device_name.localeCompare(b.device_name));
-  }, [searchQuery]);
+      });
+  }, [searchQuery, iotDevices]);
 
   const alertDevices = useMemo(
       () => filteredDevices.filter((device) => device.alerts && device.alerts.length > 0),
@@ -94,21 +82,28 @@ export default function AdminIotScreen() {
       () => filteredDevices.filter((device) => !device.alerts || device.alerts.length === 0),
       [filteredDevices]
     );
-  const noMatches = filteredDevices.length === 0;
+  const noMatches = filteredDevices.length === 0 && searchQuery.length > 0;
 
   const renderDeviceRow = (item, isAlert = false) => (
-    <View style={[styles.row, isAlert && styles.alertRow]}
-      key={item.device_id}
-    >
+    <View style={[styles.row, isAlert && styles.alertRow]} key={item.device_id}>
       <View style={styles.cellWide}>
-        <Text style={[styles.plantText, isAlert && styles.alertPlantText]}>{item.species}</Text>
-        <Text style={[styles.metaText, isAlert && styles.alertMetaText]}>{item.location.name}</Text>
+        <Text style={[styles.plantText, isAlert && styles.alertPlantText]}>{item.species_name || 'N/A'}</Text>
+        
         {isAlert && (
-          <Text style={styles.alertDetailText}>Alerts: {item.alerts.join(', ')}</Text>
+          <Text style={styles.alertDetailText}>Alerts: {item.alerts}</Text>
         )}
       </View>
       <Text style={[styles.cell, isAlert && styles.alertCellText]}>{item.device_id}</Text>
+      
       <View style={styles.cellAction}>
+        {isAlert && (
+          <TouchableOpacity
+            style={styles.resolveButton}
+            onPress={() => handleResolveDeviceAlerts(item.device_id_raw)}
+          >
+            <Text style={styles.resolveButtonText}>Resolve</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={styles.viewButton}
           onPress={() => navigation.navigate(ADMIN_IOT_DETAIL, { device: item })}
@@ -119,29 +114,52 @@ export default function AdminIotScreen() {
     </View>
   );
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator size="large" color="#1E88E5" />
+      </SafeAreaView>
+    );
+  }
+  
+  if (error) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Text style={styles.errorText}>{error}</Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <Text style={styles.headerTitle}>IoT Monitoring</Text>
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={16} color="#64748B" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search by device, plant, or location"
-            placeholderTextColor="#94A3B8"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity
-              onPress={() => setSearchQuery('')}
-              style={styles.clearButton}
-              accessibilityLabel="Clear search"
-            >
-              <Ionicons name="close-circle" size={18} color="#94A3B8" />
-            </TouchableOpacity>
-          )}
-        </View>
+      
+      <View style={styles.searchBar}>
+        <Ionicons name="search" size={16} color="#64748B" />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by device, plant, or location"
+          placeholderTextColor="#94A3B8"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity
+            onPress={() => setSearchQuery('')}
+            style={styles.clearButton}
+            accessibilityLabel="Clear search"
+          >
+            <Ionicons name="close-circle" size={18} color="#94A3B8" />
+          </TouchableOpacity>
+        )}
+      </View>
 
+      <ScrollView
+        style={styles.listContainer}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {noMatches ? (
           <View style={[styles.table, styles.emptyCard]}>
             <Ionicons name="hardware-chip-outline" size={24} color="#94A3B8" />
@@ -172,7 +190,8 @@ export default function AdminIotScreen() {
                 data={normalDevices}
                 keyExtractor={(item) => item.device_id}
                 ItemSeparatorComponent={() => <View style={styles.separator} />}
-                renderItem={({ item }) => renderDeviceRow(item)}
+                renderItem={({ item }) => renderDeviceRow(item, false)}
+                scrollEnabled={false} 
                 ListEmptyComponent={() => (
                   <View style={styles.emptyState}>
                     <Text style={styles.emptyStateText}>
@@ -186,6 +205,7 @@ export default function AdminIotScreen() {
             </View>
           </>
         )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -196,10 +216,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#F6F9F4',
     padding: 20,
   },
+  listContainer: {
+    flex: 1,
+  },
   headerTitle: {
     fontSize: 24,
     fontWeight: '700',
     color: '#1F2A37',
+  },
+  searchBar: {
+    marginTop: 16,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13.5,
+    color: '#0F172A',
+  },
+  clearButton: {
+    padding: 4,
   },
   table: {
     backgroundColor: '#FFFFFF',
@@ -239,7 +283,10 @@ const styles = StyleSheet.create({
   },
   cellAction: {
     width: 120,
-    alignItems: 'flex-end',
+    flexDirection: 'row', 
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 8, 
   },
   headerText: {
     fontWeight: '700',
@@ -279,6 +326,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#B91C1C',
+    textTransform: 'capitalize', 
   },
   viewButton: {
     paddingVertical: 6,
@@ -291,6 +339,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
+  resolveButton: {
+    backgroundColor: '#D1FAE5', 
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  resolveButtonText: {
+    color: '#065F46', 
+    fontSize: 12,
+    fontWeight: '600',
+  },
   emptyState: {
     paddingVertical: 18,
     paddingHorizontal: 16,
@@ -300,41 +359,25 @@ const styles = StyleSheet.create({
     color: '#475467',
     textAlign: 'center',
   },
-    searchBar: {
-      marginTop: 16,
-      marginBottom: 16,
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      borderRadius: 14,
-      backgroundColor: '#FFFFFF',
-      borderWidth: 1,
-      borderColor: '#E2E8F0',
-      gap: 8,
-    },
-    searchInput: {
-      flex: 1,
-      fontSize: 13.5,
-      color: '#0F172A',
-    },
-    clearButton: {
-      padding: 4,
-    },
-    emptyCard: {
-      paddingVertical: 32,
-      paddingHorizontal: 20,
-      alignItems: 'center',
-      gap: 10,
-    },
-    emptyCardTitle: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: '#1F2937',
-    },
-    emptyCardSubtitle: {
-      fontSize: 13,
-      color: '#6B7280',
-      textAlign: 'center',
-    },
+  errorText: {
+    fontSize: 14,
+    color: '#B91C1C',
+    textAlign: 'center',
+  },
+  emptyCard: {
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    gap: 10,
+  },
+  emptyCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  emptyCardSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
 });

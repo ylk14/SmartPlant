@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   View,
@@ -7,10 +7,12 @@ import {
   TouchableOpacity,
   ScrollView,
   useWindowDimensions,
+  ActivityIndicator, // <-- Import ActivityIndicator
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Line, Circle, Polyline } from 'react-native-svg';
+import { fetchDeviceHistory } from '../../../services/api'; // <-- 1. IMPORT REAL API
 
 const HOURS = 60 * 60 * 1000;
 const DAYS = 24 * HOURS;
@@ -27,105 +29,6 @@ const METRICS = [
   { key: 'soil_moisture', label: 'Soil Moisture', unit: '%', color: '#22C55E', digits: 0 },
 ];
 
-const generateMockHistory = () => {
-  const now = new Date();
-  const start = new Date(now.getTime() - 7 * DAYS);
-  const points = 56; // 7 days @ 3-hour interval
-
-  return Array.from({ length: points + 1 }, (_, index) => {
-    const pointDate = new Date(start.getTime() + index * 3 * HOURS);
-    const phase = index / 3.6;
-    const temperature = 24.5 + 3.8 * Math.sin(phase) + 0.7 * Math.cos(phase * 1.2);
-    const humidity = 65 + 15 * Math.sin(phase / 1.8 + 0.9) + 4 * Math.cos(phase / 3.1);
-    const soil = 50 + 9 * Math.cos(phase / 1.4 + 0.6) + 2.2 * Math.sin(phase / 5.2);
-    const motionDetected = ((index + 2) % 10 === 0) || ((index + 4) % 14 === 0);
-
-    return {
-      timestamp: pointDate.toISOString(),
-      temperature: Number(temperature.toFixed(1)),
-      humidity: Math.round(Math.max(38, Math.min(97, humidity))),
-      soil_moisture: Math.round(Math.max(30, Math.min(88, soil))),
-      motion_detected: motionDetected,
-    };
-  });
-};
-
-const coerceMetricNumber = (value) => {
-  const numeric = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(numeric) ? numeric : null;
-};
-
-const normalizeHistoryEntry = (entry) => {
-  if (!entry) return null;
-
-  const timestamp =
-    entry.timestamp ??
-    entry.recorded_at ??
-    entry.created_at ??
-    entry.time ??
-    entry.datetime;
-
-  const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  const metrics = entry.readings ?? entry.metrics ?? entry;
-
-  const temperature =
-    coerceMetricNumber(metrics?.temperature ?? metrics?.temp ?? entry.temperature);
-  const humidity =
-    coerceMetricNumber(metrics?.humidity ?? metrics?.relative_humidity ?? entry.humidity);
-  const soil =
-    coerceMetricNumber(
-      metrics?.soil_moisture ??
-        metrics?.soilMoisture ??
-        metrics?.soil ??
-        entry.soil_moisture
-    );
-
-  if ([temperature, humidity, soil].some((val) => val === null)) {
-    return null;
-  }
-
-  const motionDetected =
-    typeof metrics?.motion_detected === 'boolean'
-      ? metrics.motion_detected
-      : typeof entry.motion_detected === 'boolean'
-        ? entry.motion_detected
-        : Boolean(metrics?.motion ?? metrics?.motionDetected);
-
-  return {
-    timestamp: date.toISOString(),
-    temperature,
-    humidity,
-    soil_moisture: soil,
-    motion_detected: motionDetected,
-  };
-};
-
-const combineHistory = (incomingHistory) => {
-  const normalizedIncoming = Array.isArray(incomingHistory)
-    ? incomingHistory.map(normalizeHistoryEntry).filter(Boolean)
-    : [];
-
-  const fallback = generateMockHistory();
-  const merged = [...fallback];
-
-  normalizedIncoming.forEach((entry) => {
-    merged.push(entry);
-  });
-
-  const unique = new Map();
-  merged.forEach((entry) => {
-    unique.set(entry.timestamp, entry);
-  });
-
-  return Array.from(unique.values()).sort(
-    (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
-  );
-};
-
 const formatNumber = (value, digits = 0) => {
   if (typeof value !== 'number' || Number.isNaN(value)) return '--';
   return value.toFixed(digits);
@@ -140,7 +43,9 @@ const formatAxisLabel = (timestamp, rangeKey) => {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
+// (MetricChart component is unchanged)
 const MetricChart = ({ data, metric, rangeKey, chartWidth }) => {
+  // ... (This component is unchanged from your file)
   const chartHeight = 164;
   const topPadding = 18;
   const bottomPadding = 28;
@@ -297,86 +202,75 @@ const MetricChart = ({ data, metric, rangeKey, chartWidth }) => {
   );
 };
 
+
 export default function AdminIotAnalyticsScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const { width } = useWindowDimensions();
 
   const device = route?.params?.device ?? {};
-  const incomingHistory = route?.params?.history ?? [];
-
-  const combinedHistory = useMemo(
-    () => combineHistory(incomingHistory),
-    [incomingHistory]
-  );
-
+  
+  // ⬇️ *** 2. ADD STATE FOR LOADING, ERROR, AND REAL DATA *** ⬇️
   const [selectedRange, setSelectedRange] = useState('24H');
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const rangeHistory = useMemo(() => {
-    if (combinedHistory.length === 0) {
-      return [];
+  // ⬇️ *** 3. ADD useEffect TO FETCH DATA *** ⬇️
+  useEffect(() => {
+    if (!device.device_id_raw) {
+      setError('No device ID provided');
+      setLoading(false);
+      return;
     }
-    const latestTimestamp = new Date(
-      combinedHistory[combinedHistory.length - 1].timestamp
-    ).getTime();
-    const windowMs = RANGE_PRESETS[selectedRange].windowMs;
-    const threshold = latestTimestamp - windowMs;
-    const filtered = combinedHistory.filter(
-      (entry) => new Date(entry.timestamp).getTime() >= threshold
-    );
-    if (filtered.length >= 6) {
-      return filtered;
-    }
-    return combinedHistory.slice(-Math.min(combinedHistory.length, 12));
-  }, [combinedHistory, selectedRange]);
 
-  const latestEntry = rangeHistory[rangeHistory.length - 1];
-  const motionEvents = rangeHistory.filter((entry) => entry.motion_detected).length;
-  const activeAlerts = Array.isArray(device.alerts) ? device.alerts.length : 0;
+    const loadHistory = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        // Fetch real data from the API
+        const data = await fetchDeviceHistory(device.device_id_raw, selectedRange);
+        setHistory(data);
+      } catch (err) {
+        console.error('Failed to load history:', err);
+        setError('Could not load device history.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadHistory();
+  }, [device.device_id_raw, selectedRange]); // Re-fetch when range or device changes
+
+  // ⬇️ *** 4. SIMPLIFY MEMOS TO USE REAL DATA *** ⬇️
+  // (Note: 'rangeHistory' is just 'history' now)
+  const latestEntry = history.length > 0 ? history[history.length - 1] : null;
+  const motionEvents = history.filter((entry) => entry.motion_detected).length;
+  // 'activeAlerts' now comes from the 'alerts' string (e.g., "motion, environment")
+  const activeAlerts = device.alerts ? device.alerts.split(',').length : 0;
 
   const chartWidth = Math.min(width - 40, 540);
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-          activeOpacity={0.7}
-          accessibilityLabel="Go back"
-        >
-          <Ionicons name="arrow-back" size={20} color="#0F172A" />
-          <Text style={styles.backButtonText}>Back</Text>
-        </TouchableOpacity>
-        <View>
-          <Text style={styles.headerTitle}>Historical Analytics</Text>
-          <Text style={styles.headerSubtitle}>
-            {device.device_name ?? device.device_id ?? 'Unknown Device'}
-          </Text>
+  // ⬇️ *** 5. RENDER FUNCTION WITH LOADING STATE *** ⬇️
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color="#2563EB" />
+          <Text style={styles.loadingText}>Loading history...</Text>
         </View>
-      </View>
+      );
+    }
+    
+    if (error) {
+      return (
+        <View style={styles.centered}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      );
+    }
 
-      <View style={styles.rangeRow}>
-        {Object.entries(RANGE_PRESETS).map(([key, preset]) => {
-          const isActive = key === selectedRange;
-          return (
-            <TouchableOpacity
-              key={key}
-              onPress={() => setSelectedRange(key)}
-              style={[styles.rangeChip, isActive && styles.rangeChipActive]}
-              activeOpacity={0.8}
-              accessibilityLabel={`Show data for ${preset.label}`}
-            >
-              <Text
-                style={[styles.rangeChipText, isActive && styles.rangeChipTextActive]}
-              >
-                {preset.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
+    return (
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.kpiRow}>
           <View style={styles.kpiCard}>
@@ -405,18 +299,66 @@ export default function AdminIotAnalyticsScreen() {
         {METRICS.map((metric) => (
           <MetricChart
             key={metric.key}
-            data={rangeHistory}
+            data={history} // <-- Use real history data
             metric={metric}
             rangeKey={selectedRange}
             chartWidth={chartWidth}
           />
         ))}
-
       </ScrollView>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+          activeOpacity={0.7}
+          accessibilityLabel="Go back"
+        >
+          <Ionicons name="arrow-back" size={20} color="#0F172A" />
+          <Text style={styles.backButtonText}>Back</Text>
+        </TouchableOpacity>
+        <View>
+          <Text style={styles.headerTitle}>Historical Analytics</Text>
+          {/* Use real device name from params */}
+          <Text style={styles.headerSubtitle}>
+            {device.device_name ?? device.device_id ?? 'Unknown Device'}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.rangeRow}>
+        {Object.entries(RANGE_PRESETS).map(([key, preset]) => {
+          const isActive = key === selectedRange;
+          return (
+            <TouchableOpacity
+              key={key}
+              onPress={() => setSelectedRange(key)}
+              style={[styles.rangeChip, isActive && styles.rangeChipActive]}
+              activeOpacity={0.8}
+              accessibilityLabel={`Show data for ${preset.label}`}
+            >
+              <Text
+                style={[styles.rangeChipText, isActive && styles.rangeChipTextActive]}
+              >
+                {preset.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      
+      {/* Render the content (loading, error, or charts) */}
+      {renderContent()}
+      
     </SafeAreaView>
   );
 }
 
+// ⬇️ *** 6. ADDED STYLES for loading/error states *** ⬇️
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -430,6 +372,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 16,
     backgroundColor: '#F5F6FA',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
   backButton: {
     flexDirection: 'row',
@@ -458,7 +402,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 20,
-    paddingBottom: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
   rangeChip: {
     borderRadius: 999,
@@ -481,6 +427,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 40,
     gap: 20,
+  },
+  // New styles for centered content
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#475467',
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#B91C1C',
+    textAlign: 'center',
+    paddingHorizontal: 20,
   },
   kpiRow: {
     flexDirection: 'row',
