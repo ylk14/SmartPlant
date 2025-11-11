@@ -138,7 +138,7 @@ export default function AdminIotScreen() {
         <Ionicons name="search" size={16} color="#64748B" />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search by device, plant, or location"
+          placeholder="Search by device or plant"
           placeholderTextColor="#94A3B8"
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -284,9 +284,10 @@ const styles = StyleSheet.create({
   cellAction: {
     width: 120,
     flexDirection: 'row', 
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
     alignItems: 'center',
     gap: 8, 
+    textAlign: 'center',
   },
   headerText: {
     fontWeight: '700',
