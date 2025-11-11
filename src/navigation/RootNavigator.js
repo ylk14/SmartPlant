@@ -26,6 +26,7 @@ import ObservationDetailScreen from '../screens/ObservationDetailScreen';
 import WelcomeScreen from '../screens/WelcomeScreen';
 import SignUpScreen from '../screens/SignUpScreen';
 import LoginScreen from '../screens/LoginScreen';
+import MFAScreen from '../screens/MFAScreen';
 import HeatmapScreen from '../screens/HeatmapScreen';
 import AdminNavigator from './AdminNavigator';
 import AdminAgentChatScreen from '../screens/admin/AdminAgentChatScreen';
@@ -125,6 +126,7 @@ export default function RootNavigator() {
         <Stack.Screen name="Welcome" component={WelcomeScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="SignUp" component={SignUpScreen} />
+        <Stack.Screen name="MFA" component={MFAScreen} />
 
         {/* --- App tabs (ONLY place where Home lives) --- */}
         <Stack.Screen name={ROOT_TABS} component={Tabs} />

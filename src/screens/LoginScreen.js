@@ -13,8 +13,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { loginUser, forgotPassword } from "../../services/api";
 import { ADMIN_ROOT, ROOT_TABS } from '../navigation/routes';
 
-
-
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,7 +20,19 @@ export default function LoginScreen({ navigation }) {
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
+  // MFA state variables
+  const [step, setStep] = useState(1); // 1: credentials, 2: MFA verification
+  const [mfaCode, setMfaCode] = useState("");
+  const [mockCode, setMockCode] = useState("");
+  const [userEmail, setUserEmail] = useState("");
+
+  // Generate mock MFA code
+  const generateMockCode = () => {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  };
+
+  // Handle credentials submission
+  const handleCredentialsSubmit = async () => {
     if (!email || !password) {
       Alert.alert("Missing Fields", "Please enter both email and password.");
       return;
@@ -30,36 +40,102 @@ export default function LoginScreen({ navigation }) {
 
     setLoading(true);
     try {
-      const response = await loginUser(email, password);
-      if (response.success) {
-        const destinations = {
-          admin: ADMIN_ROOT,
-          user: ROOT_TABS,
-        };
-        const destination = destinations[response.role] ?? ROOT_TABS;
-        Alert.alert(
-          "Login Successful",
-          `Signed in as ${response.role === 'admin' ? 'administrator' : 'user'}.`
-        );
-        // TODO: Remember user if checked
-        if (rememberMe) {
-          console.log("User wants to be remembered:", email);
-          // Later: save token or user info securely
-        }
-        navigation.reset({
-          index: 0,
-          routes: [{ name: destination }],
-        });
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-      }
-    } catch (error) {
-      Alert.alert("Login Failed", error.message);
+      // For demo purposes - in real app, this would be your API response
+      const code = generateMockCode();
+      setMockCode(code);
+      setUserEmail(email);
+      
+      // Simulate sending code to email
+      console.log(`🔐 MOCK EMAIL: Your verification code is ${code}`);
+      
+      // Move to MFA step
+      setStep(2);
+    } catch (err) {
+      Alert.alert("Login Failed", err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ Forgot Password placeholder
+  // Handle MFA verification
+  const handleMFASubmit = async () => {
+    if (mfaCode.length !== 6) {
+      Alert.alert("Invalid Code", "Please enter a 6-digit verification code.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Mock MFA code verification
+      if (mfaCode === mockCode) {
+        // Success - proceed with actual login
+        const response = await loginUser(email, password);
+        if (response.success) {
+          const destinations = {
+            admin: ADMIN_ROOT,
+            user: ROOT_TABS,
+          };
+          const destination = destinations[response.role] ?? ROOT_TABS;
+          Alert.alert(
+            "Login Successful",
+            `Signed in as ${response.role === 'admin' ? 'administrator' : 'user'}.`
+          );
+          
+          if (rememberMe) {
+            console.log("User wants to be remembered:", email);
+          }
+          
+          navigation.reset({
+            index: 0,
+            routes: [{ name: destination }],
+          });
+        }
+      } else {
+        throw new Error('Invalid verification code');
+      }
+    } catch (err) {
+      Alert.alert("Verification Failed", err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle resend code
+  const handleResendCode = async () => {
+    setLoading(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const newCode = generateMockCode();
+      setMockCode(newCode);
+      console.log(`🔐 MOCK EMAIL: Your new verification code is ${newCode}`);
+      Alert.alert("Code Sent", "New verification code sent! Check console for development mode.");
+    } catch (err) {
+      Alert.alert("Error", "Failed to resend code");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Mask email function
+  const maskEmail = (email) => {
+    const [local, domain] = email.split('@');
+    const maskedLocal = local.slice(0, 2) + '*'.repeat(local.length - 2);
+    return `${maskedLocal}@${domain}`;
+  };
+
+  // Back to credentials step
+  const handleBackToLogin = () => {
+    setStep(1);
+    setMfaCode("");
+  };
+
+  // Your original forgot password function
   const handleForgotPassword = async () => {
     if (!email) {
       Alert.alert("Missing Email", "Please enter your registered email first.");
@@ -93,7 +169,7 @@ export default function LoginScreen({ navigation }) {
           Join us today and explore our amazing features!
         </Text>
 
-        {/* ✅ Buttons to switch between Sign Up / Login */}
+        {/* Buttons to switch between Sign Up / Login */}
         <View style={styles.switchButtons}>
           <TouchableOpacity
             style={styles.switchButton}
@@ -106,75 +182,158 @@ export default function LoginScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* ✅ Email Field */}
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your email"
-            placeholderTextColor="#ccc"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-        </View>
-
-        {/* ✅ Password Field */}
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>Password</Text>
-          <View style={styles.passwordContainer}>
-            <TextInput
-              style={[styles.input, { flex: 1 }]}
-              placeholder="Enter your password"
-              placeholderTextColor="#ccc"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-            />
-            <TouchableOpacity
-              onPress={() => setShowPassword(!showPassword)}
-              style={styles.iconButton}
-            >
-              <Ionicons
-                name={showPassword ? "eye-off" : "eye"}
-                size={20}
-                color="#ccc"
+        {/* Step 1 - Credentials Form */}
+        {step === 1 && (
+          <View style={styles.formContainer}>
+            {/* Email Field */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Email</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your email"
+                placeholderTextColor="#ccc"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
               />
+            </View>
+
+            {/* Password Field */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Password</Text>
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  placeholder="Enter your password"
+                  placeholderTextColor="#ccc"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.iconButton}
+                >
+                  <Ionicons
+                    name={showPassword ? "eye-off" : "eye"}
+                    size={20}
+                    color="#ccc"
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Remember Me & Forgot Password */}
+            <View style={styles.rowContainer}>
+              <TouchableOpacity
+                style={styles.rememberContainer}
+                onPress={() => setRememberMe(!rememberMe)}
+              >
+              <Ionicons
+                name={rememberMe ? "checkbox" : "square-outline"}
+                size={22}
+                color={rememberMe ? "#4CAF50" : "#ccc"}
+              />
+              <Text style={styles.rememberText}>Remember me</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={handleForgotPassword}>
+                <Text style={styles.forgotText}>Forgot Password?</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Login Button */}
+            <TouchableOpacity
+              style={styles.loginButton}
+              onPress={handleCredentialsSubmit}
+              disabled={loading}
+            >
+              <Text style={styles.loginButtonText}>
+                {loading ? "Loading..." : "Login"}
+              </Text>
             </TouchableOpacity>
           </View>
-        </View>
+        )}
 
-        {/* ✅ Custom Remember Me Checkbox */}
-        <View style={styles.rowContainer}>
-          <TouchableOpacity
-            style={styles.rememberContainer}
-            onPress={() => setRememberMe(!rememberMe)}
-          >
-          <Ionicons
-            name={rememberMe ? "checkbox" : "square-outline"}
-            size={22}
-            color={rememberMe ? "#4CAF50" : "#ccc"}
-          />
-          <Text style={styles.rememberText}>Remember me</Text>
-          </TouchableOpacity>
+        {/* Step 2 - MFA Verification */}
+        {step === 2 && (
+          <View style={styles.formContainer}>
+            <View style={styles.mfaHeader}>
+              <View style={styles.mfaIconContainer}>
+                <Ionicons name="mail" size={40} color="#fff" />
+              </View>
+              <Text style={styles.mfaTitle}>Email Verification</Text>
+              <Text style={styles.mfaSubtitle}>
+                We sent a 6-digit code to{"\n"}
+                <Text style={styles.emailHighlight}>{maskEmail(userEmail)}</Text>
+              </Text>
+              <Text style={styles.mfaHint}>
+                Check your email and enter the code below
+              </Text>
+              
+              {/* Mock code display */}
+              <View style={styles.mockCodeDisplay}>
+                <Text style={styles.mockTitle}>🛠️ DEVELOPMENT MODE</Text>
+                <Text style={styles.mockCodeText}>
+                  Your verification code is: <Text style={styles.codeHighlight}>{mockCode}</Text>
+                </Text>
+                <Text style={styles.mockNote}>(In production, this would be sent to your email)</Text>
+              </View>
+            </View>
 
-  <TouchableOpacity onPress={handleForgotPassword}>
-    <Text style={styles.forgotText}>Forgot Password?</Text>
-  </TouchableOpacity>
-</View>
+            {/* MFA Code Input */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>6-Digit Code</Text>
+              <TextInput
+                style={styles.codeInput}
+                placeholder="123456"
+                placeholderTextColor="#ccc"
+                value={mfaCode}
+                onChangeText={(text) => setMfaCode(text.replace(/\D/g, '').slice(0, 6))}
+                keyboardType="number-pad"
+                maxLength={6}
+                autoFocus={true}
+              />
+            </View>
 
+            {/* MFA Action Buttons */}
+            <View style={styles.mfaButtonGroup}>
+              <TouchableOpacity 
+                style={styles.backButton}
+                onPress={handleBackToLogin}
+                disabled={loading}
+              >
+                <Text style={styles.backButtonText}>Back</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[
+                  styles.verifyButton,
+                  (loading || mfaCode.length !== 6) && styles.buttonDisabled
+                ]}
+                onPress={handleMFASubmit}
+                disabled={loading || mfaCode.length !== 6}
+              >
+                <Text style={styles.verifyButtonText}>
+                  {loading ? "Verifying..." : "Verify Code"}
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-        {/* ✅ Login Button */}
-        <TouchableOpacity
-          style={styles.loginButton}
-          onPress={handleLogin}
-          disabled={loading}
-        >
-          <Text style={styles.loginButtonText}>
-            {loading ? "Loading..." : "Login"}
-          </Text>
-        </TouchableOpacity>
+            {/* Resend Code Option */}
+            <View style={styles.resendContainer}>
+              <Text style={styles.resendText}>
+                Didn't receive the code?
+              </Text>
+              <TouchableOpacity 
+                onPress={handleResendCode}
+                disabled={loading}
+              >
+                <Text style={styles.resendButton}>Resend Code</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
     </ImageBackground>
   );
@@ -184,12 +343,9 @@ const styles = StyleSheet.create({
   background: {
     flex: 1,
     resizeMode: "cover",
-    justifyContent: "center",
-    alignItems: "center",
   },
   overlay: {
     flex: 1,
-    width: "100%",
     backgroundColor: "rgba(0, 0, 0, 0.6)",
     alignItems: "center",
     justifyContent: "center",
@@ -237,6 +393,9 @@ const styles = StyleSheet.create({
   activeText: {
     color: "#fff",
   },
+  formContainer: {
+    width: "100%",
+  },
   inputContainer: {
     width: "100%",
     marginBottom: 15,
@@ -252,6 +411,15 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 14,
   },
+  codeInput: {
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 18,
+    fontWeight: "bold",
+    textAlign: "center",
+    letterSpacing: 4,
+  },
   passwordContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -259,6 +427,7 @@ const styles = StyleSheet.create({
   iconButton: {
     position: "absolute",
     right: 10,
+    padding: 8,
   },
   rowContainer: {
     flexDirection: "row",
@@ -283,7 +452,7 @@ const styles = StyleSheet.create({
   loginButton: {
     backgroundColor: "#78a756ff",
     width: "100%",
-    paddingVertical: 12,
+    paddingVertical: 15,
     borderRadius: 10,
     alignItems: "center",
   },
@@ -291,5 +460,124 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "bold",
+  },
+
+  // MFA Styles
+  mfaHeader: {
+    alignItems: "center",
+    marginBottom: 25,
+  },
+  mfaIconContainer: {
+    backgroundColor: "rgba(120, 167, 86, 0.8)",
+    padding: 15,
+    borderRadius: 50,
+    marginBottom: 15,
+  },
+  mfaTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#fff",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  mfaSubtitle: {
+    fontSize: 14,
+    color: "#ddd",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 5,
+  },
+  emailHighlight: {
+    fontWeight: "bold",
+    color: "#78a756ff",
+  },
+  mfaHint: {
+    fontSize: 13,
+    color: "#bbb",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  mockCodeDisplay: {
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    padding: 15,
+    borderRadius: 10,
+    marginTop: 10,
+    width: "100%",
+  },
+  mockTitle: {
+    color: "#fff",
+    fontWeight: "bold",
+    textAlign: "center",
+    marginBottom: 5,
+    fontSize: 14,
+  },
+  mockCodeText: {
+    color: "#ddd",
+    textAlign: "center",
+    fontSize: 13,
+    marginBottom: 5,
+  },
+  codeHighlight: {
+    backgroundColor: "#1F2937",
+    color: "#FFFFFF",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    fontWeight: "bold",
+  },
+  mockNote: {
+    fontSize: 11,
+    color: "#999",
+    textAlign: "center",
+    fontStyle: "italic",
+  },
+  mfaButtonGroup: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 20,
+  },
+  backButton: {
+    flex: 1,
+    paddingVertical: 15,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  backButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  verifyButton: {
+    flex: 2,
+    paddingVertical: 15,
+    backgroundColor: "#78a756ff",
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  buttonDisabled: {
+    backgroundColor: "rgba(120, 167, 86, 0.5)",
+  },
+  verifyButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  resendContainer: {
+    alignItems: "center",
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.2)",
+  },
+  resendText: {
+    color: "#ddd",
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  resendButton: {
+    color: "#78a756ff",
+    fontSize: 13,
+    fontWeight: "600",
+    textDecorationLine: "underline",
   },
 });

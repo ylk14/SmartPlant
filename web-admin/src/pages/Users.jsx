@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import UserDetailModal from "../components/UserDetailModal";
 
 // Mock data fallback (remove when backend API ready)
 const MOCK_USERS = [
@@ -9,8 +10,6 @@ const MOCK_USERS = [
     role: "Admin",
     phone: "+60 12-345 6789",
     active: true,
-    mfa_enabled: true, 
-    mfa_method: "email", 
     created_at: "2024-06-10T09:45:00Z",
   },
   {
@@ -20,8 +19,6 @@ const MOCK_USERS = [
     role: "Plant Researcher",
     phone: "+60 13-222 1111",
     active: false,
-    mfa_enabled: false,
-    mfa_method: "none",
     created_at: "2024-08-21T14:20:00Z",
   },
   {
@@ -30,9 +27,7 @@ const MOCK_USERS = [
     email: "joy@smartplant.dev",
     role: "User",
     phone: "+60 17-555 6666",
-    active: false,
-    mfa_enabled: false,
-    mfa_method: "none",
+    active: true,
     created_at: "2025-01-04T11:05:00Z",
   },
 ];
@@ -43,13 +38,28 @@ export default function Users() {
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [roleMenu, setRoleMenu] = useState(null);
-  const [mfaSetupUser, setMfaSetupUser] = useState(null);
-  const [showMFASetup, setShowMFASetup] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [hoveredDropdownItem, setHoveredDropdownItem] = useState(null);
 
   // Load mock first, replace with API later
   useEffect(() => {
     setUsers(MOCK_USERS);
   }, []);
+
+  // Search functionality from mobile
+  const filteredUsers = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    return users
+      .filter((user) => {
+        if (!normalizedQuery) return true;
+        return (
+          user.username.toLowerCase().includes(normalizedQuery) ||
+          user.phone.toLowerCase().includes(normalizedQuery) ||
+          String(user.user_id).includes(normalizedQuery)
+        );
+      })
+      .sort((a, b) => a.username.localeCompare(b.username));
+  }, [searchQuery, users]);
 
   const toggleStatus = (id) => {
     setUsers((prev) =>
@@ -64,6 +74,36 @@ export default function Users() {
       prev.map((u) => (u.user_id === id ? { ...u, role } : u))
     );
     setRoleMenu(null);
+    setHoveredDropdownItem(null);
+  };
+
+  const handleUserUpdate = (updatedUser) => {
+    if (!updatedUser || typeof updatedUser.user_id === 'undefined') {
+      return;
+    }
+    setUsers((prev) =>
+      prev.map((user) =>
+        user.user_id === updatedUser.user_id ? { ...user, ...updatedUser } : user
+      )
+    );
+  };
+
+  const getDropdownItemStyle = (role) => {
+    const baseStyle = {
+      padding: "10px 12px",
+      cursor: "pointer",
+      borderBottom: "1px solid #f1f1f1",
+      fontSize: "13px",
+    };
+    
+    if (hoveredDropdownItem === role) {
+      return {
+        ...baseStyle,
+        backgroundColor: "#F8FAFC"
+      };
+    }
+    
+    return baseStyle;
   };
 
   return (
@@ -72,6 +112,27 @@ export default function Users() {
       <p style={styles.pageSubtitle}>
         Manage administrator and researcher accounts. All actions sync with backend & database.
       </p>
+
+      {/* Search Bar from mobile */}
+      <div style={styles.searchBar}>
+        <span style={styles.searchIcon}>🔍</span>
+        <input
+          type="text"
+          style={styles.searchInput}
+          placeholder="Search by username, phone, or ID"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        {searchQuery.length > 0 && (
+          <button 
+            style={styles.clearButton}
+            onClick={() => setSearchQuery('')}
+            aria-label="Clear search"
+          >
+            ×
+          </button>
+        )}
+      </div>
 
       <div style={styles.tableWrapper}>
         <table style={styles.table}>
@@ -84,156 +145,125 @@ export default function Users() {
               <th style={styles.th}>Role</th>
               <th style={styles.th}>Status</th>
               <th style={styles.th}>Actions</th>
-              <th style={styles.th}>MFA Status</th>
             </tr>
           </thead>
 
           <tbody>
-            {users.map((user) => (
-              <tr key={user.user_id}>
-                <td style={styles.td}>{user.user_id}</td>
-                <td style={styles.td}>{user.username}</td>
-                <td style={styles.td}>{user.email}</td>
-                <td style={styles.td}>{user.phone}</td>
-
-                {/* Role Dropdown */}
-                <td style={styles.td}>
-                  <div style={styles.roleColumn}>
-                    <button
-                      style={styles.roleBtn}
-                      onClick={() =>
-                        setRoleMenu(roleMenu === user.user_id ? null : user.user_id)
-                      }
-                    >
-                      {user.role} ▼
-                    </button>
-
-                    {roleMenu === user.user_id && (
-                      <div style={styles.dropdown}>
-                        {ROLE_OPTIONS.map((r) => (
-                          <div
-                            key={r}
-                            style={styles.dropdownItem}
-                            onClick={() => updateRole(user.user_id, r)}
-                          >
-                            {r}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+            {filteredUsers.length === 0 ? (
+              <tr>
+                <td colSpan="7" style={styles.emptyState}>
+                  <div style={styles.emptyStateContent}>
+                    <span style={styles.emptyStateIcon}>👥</span>
+                    <p style={styles.emptyStateText}>No users found. Try a different search.</p>
                   </div>
-                </td>
-
-                {/* Centered status text + toggle */}
-                <td style={{ ...styles.td, textAlign: "center" }}>
-                  <div style={styles.statusContainer}>
-                    <div style={styles.statusText}>
-                      {user.active ? "Active" : "Inactive"}
-                    </div>
-
-                    <div
-                      style={{
-                        ...styles.toggle,
-                        backgroundColor: user.active ? "#3AA272" : "#D0D7DD",
-                      }}
-                      onClick={() => toggleStatus(user.user_id)}
-                    >
-                      <div
-                        style={{
-                          ...styles.toggleCircle,
-                          marginLeft: user.active ? "22px" : "2px",
-                        }}
-                      />
-                    </div>
-                  </div>
-                </td>
-
-                {/* MFA Status and setup button */}
-                <td style={styles.td}>
-                  <div style={styles.mfaContainer}>
-                    <span style={user.mfa_enabled ? styles.mfaEnabled : styles.mfaDisabled}>
-                      {user.mfa_enabled ? 'Enabled' : 'Disabled'}
-                    </span>
-                    {!user.mfa_enabled && (
-                      <button 
-                        style={styles.mfaSetupBtn}
-                        onClick={() => {
-                          setMfaSetupUser(user);
-                          setShowMFASetup(true);
-                        }}
-                      >
-                        Setup MFA
-                      </button>
-                    )}
-                  </div>
-                </td>
-
-                {/* Centered View button */}
-                <td style={{ ...styles.td, textAlign: "center" }}>
-                  <button
-                    style={styles.viewBtn}
-                    onClick={() => setSelectedUser(user)}
-                  >
-                    View
-                  </button>
                 </td>
               </tr>
-            ))}
+            ) : (
+              filteredUsers.map((user) => (
+                <tr key={user.user_id}>
+                  <td style={styles.td}>{user.user_id}</td>
+                  <td style={styles.td}>
+                    <span style={!user.active ? styles.usernameInactive : {}}>
+                      {user.username}
+                    </span>
+                  </td>
+                  <td style={styles.td}>{user.email}</td>
+                  <td style={styles.td}>{user.phone}</td>
+
+                  {/* Role Dropdown */}
+                  <td style={styles.td}>
+                    <div style={styles.roleColumn}>
+                      <button
+                        style={styles.roleBtn}
+                        onClick={() =>
+                          setRoleMenu(roleMenu === user.user_id ? null : user.user_id)
+                        }
+                      >
+                        {user.role} ▼
+                      </button>
+
+                      {roleMenu === user.user_id && (
+                        <div style={styles.dropdown}>
+                          {ROLE_OPTIONS.map((r) => (
+                            <div
+                              key={r}
+                              style={getDropdownItemStyle(r)}
+                              onMouseEnter={() => setHoveredDropdownItem(r)}
+                              onMouseLeave={() => setHoveredDropdownItem(null)}
+                              onClick={() => updateRole(user.user_id, r)}
+                            >
+                              {r}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </td>
+
+                  {/* Centered status text + toggle */}
+                  <td style={{ ...styles.td, textAlign: "center" }}>
+                    <div style={styles.statusContainer}>
+                      <div style={styles.statusText}>
+                        {user.active ? "Active" : "Inactive"}
+                      </div>
+
+                      <div
+                        style={{
+                          ...styles.toggle,
+                          backgroundColor: user.active ? "#3AA272" : "#D0D7DD",
+                        }}
+                        onClick={() => toggleStatus(user.user_id)}
+                      >
+                        <div
+                          style={{
+                            ...styles.toggleCircle,
+                            marginLeft: user.active ? "22px" : "2px",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* Centered View button */}
+                  <td style={{ ...styles.td, textAlign: "center" }}>
+                    <button
+                      style={styles.viewBtn}
+                      onClick={() => setSelectedUser(user)}
+                    >
+                      View
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
 
-      {/* USER DETAIL MODAL */}
+      {/* Enhanced User Detail Modal */}
       {selectedUser && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modal}>
-            <h3 style={styles.modalTitle}>{selectedUser.username}</h3>
-            <p style={styles.modalSub}>User ID: {selectedUser.user_id}</p>
-
-            <div style={styles.detailRow}>
-              <span>Email:</span> <strong>{selectedUser.email}</strong>
-            </div>
-            <div style={styles.detailRow}>
-              <span>Phone:</span> <strong>{selectedUser.phone}</strong>
-            </div>
-            <div style={styles.detailRow}>
-              <span>Role:</span> <strong>{selectedUser.role}</strong>
-            </div>
-            <div style={styles.detailRow}>
-              <span>Status:</span>{" "}
-              <strong>{selectedUser.active ? "Active" : "Inactive"}</strong>
-            </div>
-            <div style={styles.detailRow}>
-              <span>Created:</span>{" "}
-              <strong>{new Date(selectedUser.created_at).toLocaleString()}</strong>
-            </div>
-
-            <button
-              style={styles.closeBtn}
-              onClick={() => setSelectedUser(null)}
-            >
-              Close
-            </button>
-          </div>
-        </div>
+        <UserDetailModal 
+          user={selectedUser} 
+          onClose={() => setSelectedUser(null)}
+          onUserUpdate={handleUserUpdate}
+        />
       )}
     </div>
   );
 }
 
-//
-// STYLES
-//
-
 const styles = {
   page: {
     padding: "24px",
+    backgroundColor: "#F5F6F8",
+    minHeight: "100vh",
   },
 
   pageTitle: {
     fontSize: "24px",
     fontWeight: "700",
     color: "#1E2D3D",
+    marginBottom: "8px",
   },
 
   pageSubtitle: {
@@ -242,36 +272,108 @@ const styles = {
     color: "#566573",
   },
 
+  // Search bar styles from mobile
+  searchBar: {
+    marginTop: "16px",
+    marginBottom: "20px",
+    display: "flex",
+    alignItems: "center",
+    padding: "0 14px",
+    height: "44px",
+    borderRadius: "14px",
+    backgroundColor: "#FFFFFF",
+    border: "1px solid #E2E8F0",
+    gap: "8px",
+    maxWidth: "400px",
+  },
+
+  searchIcon: {
+    fontSize: "16px",
+    color: "#64748B",
+  },
+
+  searchInput: {
+    flex: 1,
+    border: "none",
+    outline: "none",
+    fontSize: "14px",
+    color: "#0F172A",
+    background: "transparent",
+  },
+
+  clearButton: {
+    background: "none",
+    border: "none",
+    fontSize: "18px",
+    color: "#94A3B8",
+    cursor: "pointer",
+    padding: "4px",
+    borderRadius: "50%",
+    width: "24px",
+    height: "24px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
   tableWrapper: {
     marginTop: "20px",
     overflowX: "auto",
+    backgroundColor: "#fff",
+    borderRadius: "12px",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
   },
 
   table: {
     width: "100%",
     borderCollapse: "collapse",
-    backgroundColor: "#fff",
-    borderRadius: "12px",
   },
 
   th: {
     textAlign: "left",
-    padding: "14px",
+    padding: "16px",
     background: "#EBEEF2",
     fontWeight: "600",
     fontSize: "14px",
+    color: "#1E2D3D",
   },
 
   td: {
-    padding: "14px",
+    padding: "16px",
     borderBottom: "1px solid #E7EAF0",
     fontSize: "14px",
   },
 
-  //
-  // Role button + dropdown
-  //
+  // Username inactive style from mobile
+  usernameInactive: {
+    color: "#9CA3AF",
+  },
 
+  // Empty state styles from mobile
+  emptyState: {
+    padding: "40px 20px",
+    textAlign: "center",
+  },
+
+  emptyStateContent: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: "12px",
+  },
+
+  emptyStateIcon: {
+    fontSize: "24px",
+    color: "#94A3B8",
+  },
+
+  emptyStateText: {
+    fontSize: "14px",
+    color: "#64748B",
+    margin: 0,
+  },
+
+  // Role button + dropdown
   roleColumn: {
     position: "relative",
   },
@@ -284,6 +386,7 @@ const styles = {
     cursor: "pointer",
     fontSize: "13px",
     fontWeight: 600,
+    color: "#23364B",
   },
 
   dropdown: {
@@ -291,22 +394,14 @@ const styles = {
     top: "38px",
     left: 0,
     background: "#fff",
-    border: "1px solid #ccc",
+    border: "1px solid #E2E8F0",
     width: "160px",
     borderRadius: "8px",
     zIndex: 10,
+    boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
   },
 
-  dropdownItem: {
-    padding: "10px",
-    cursor: "pointer",
-    borderBottom: "1px solid #eee",
-  },
-
-  //
   // Status toggle
-  //
-
   statusContainer: {
     display: "flex",
     flexDirection: "column",
@@ -320,8 +415,8 @@ const styles = {
   },
 
   toggle: {
-    width: "40px",
-    height: "20px",
+    width: "44px",
+    height: "22px",
     borderRadius: "20px",
     display: "flex",
     alignItems: "center",
@@ -330,76 +425,22 @@ const styles = {
   },
 
   toggleCircle: {
-    width: "16px",
-    height: "16px",
+    width: "18px",
+    height: "18px",
     background: "#fff",
     borderRadius: "50%",
     transition: "0.2s",
   },
 
-  //
   // View button
-  //
-
   viewBtn: {
-    padding: "8px 14px",
+    padding: "8px 16px",
     background: "#1E88E5",
     color: "#fff",
     borderRadius: "8px",
     border: "none",
     cursor: "pointer",
     fontWeight: 600,
-  },
-
-  //
-  // Modal
-  //
-
-  modalOverlay: {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    width: "100vw",
-    height: "100vh",
-    background: "rgba(0,0,0,0.35)",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  modal: {
-    width: "380px",
-    background: "#fff",
-    padding: "22px",
-    borderRadius: "14px",
-  },
-
-  modalTitle: {
-    fontSize: "20px",
-    fontWeight: "700",
-  },
-
-  modalSub: {
-    fontSize: "12px",
-    color: "#555",
-    marginBottom: "14px",
-  },
-
-  detailRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    padding: "8px 0",
-    fontSize: "14px",
-  },
-
-  closeBtn: {
-    marginTop: "16px",
-    width: "100%",
-    padding: "10px",
-    background: "#1E88E5",
-    color: "#fff",
-    border: "none",
-    borderRadius: "8px",
-    cursor: "pointer",
+    fontSize: "13px",
   },
 };

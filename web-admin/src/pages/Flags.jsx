@@ -10,6 +10,7 @@ export default function FlaggedPlants() {
   const [showImageModal, setShowImageModal] = useState(false);
   const [showIdentifyModal, setShowIdentifyModal] = useState(false);
   const [identifiedName, setIdentifiedName] = useState("");
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   // ✅ Updated Mock data (matching mobile version structure)
   const MOCK_FLAGGED = [
@@ -75,10 +76,16 @@ export default function FlaggedPlants() {
     return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
   };
 
-  // ✅ Modal handlers
+  // ✅ NEW: Check if confidence is low (from mobile)
+  const isLowConfidence = (confidence) => confidence < 0.5;
+
+  // ✅ Modal handlers - FIXED: Prevent body scroll when modal is open
   const handleReview = (observation) => {
     setSelectedObservation(observation);
     setShowReviewModal(true);
+    setImageLoaded(false); // Reset image loaded state
+    // Prevent body scroll when modal is open
+    document.body.style.overflow = 'hidden';
   };
 
   const handleCloseModal = () => {
@@ -87,6 +94,19 @@ export default function FlaggedPlants() {
     setShowImageModal(false);
     setShowIdentifyModal(false);
     setIdentifiedName("");
+    setImageLoaded(false); // Reset image loaded state
+    // Restore body scroll
+    document.body.style.overflow = 'unset';
+  };
+
+  const handleImageModal = (show) => {
+    setShowImageModal(show);
+    document.body.style.overflow = show ? 'hidden' : 'unset';
+  };
+
+  const handleIdentifyModal = (show) => {
+    setShowIdentifyModal(show);
+    document.body.style.overflow = show ? 'hidden' : 'unset';
   };
 
   const handleApprove = () => {
@@ -99,7 +119,7 @@ export default function FlaggedPlants() {
   };
 
   const handleIdentify = () => {
-    setShowIdentifyModal(true);
+    handleIdentifyModal(true);
   };
 
   const handleSaveIdentification = () => {
@@ -130,6 +150,7 @@ export default function FlaggedPlants() {
             align-items: center;
             z-index: 1000;
             padding: 20px;
+            overflow: hidden;
           }
 
           .modal-content {
@@ -166,18 +187,26 @@ export default function FlaggedPlants() {
             overflow-y: auto;
           }
 
+          /* FIXED: Stable image container */
           .photo-wrapper {
             position: relative;
             cursor: pointer;
             border-radius: 18px;
             overflow: hidden;
             margin-bottom: 20px;
+            height: 220px;
+            width: 100%;
+            background-color: #f8fafc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
           }
 
           .photo {
             width: 100%;
-            height: 220px;
+            height: 100%;
             object-fit: cover;
+            display: block;
           }
 
           .resize-badge {
@@ -189,47 +218,6 @@ export default function FlaggedPlants() {
             padding: 8px;
             color: white;
             font-size: 14px;
-          }
-
-          .image-modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: rgba(0, 0, 0, 0.85);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 2000;
-            padding: 20px;
-          }
-
-          .image-modal-content {
-            position: relative;
-            max-width: 90%;
-            max-height: 90%;
-          }
-
-          .image-modal-image {
-            max-width: 100%;
-            max-height: 80vh;
-            border-radius: 12px;
-          }
-
-          .image-modal-close {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: #1E88E5;
-            color: white;
-            border: none;
-            border-radius: 999px;
-            padding: 10px 24px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
           }
 
           .identify-modal-overlay {
@@ -244,6 +232,7 @@ export default function FlaggedPlants() {
             align-items: center;
             z-index: 2000;
             padding: 20px;
+            overflow: hidden;
           }
 
           .identify-modal-content {
@@ -304,7 +293,7 @@ export default function FlaggedPlants() {
           .confirm-button {
             padding: 10px 18px;
             border-radius: 10px;
-            background-color: #1E88E5;
+            backgroundColor: #1E88E5;
             border: none;
             font-size: 13px;
             font-weight: 700;
@@ -315,6 +304,30 @@ export default function FlaggedPlants() {
           .confirm-button:disabled {
             background-color: #94A3B8;
             cursor: not-allowed;
+          }
+
+          /* NEW: Low confidence badge styles */
+          .low-confidence-badge {
+            font-size: 10px;
+            font-weight: 700;
+            color: #DC2626;
+            background-color: #FEE2E2;
+            padding: 2px 6px;
+            border-radius: 8px;
+            text-transform: uppercase;
+            margin-left: 8px;
+          }
+
+          /* NEW: Endangered badge styles */
+          .endangered-badge {
+            font-size: 12px;
+            font-weight: 600;
+            color: #DC2626;
+            background-color: #FEE2E2;
+            padding: 4px 8px;
+            border-radius: 8px;
+            display: inline-block;
+            margin-top: 4px;
           }
         `}
       </style>
@@ -328,34 +341,59 @@ export default function FlaggedPlants() {
         </div>
 
         {/* ✅ Search bar */}
-        <input
-          style={styles.search}
-          placeholder="Search flagged observations..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
+        <div style={styles.searchBar}>
+          <span style={styles.searchIcon}>🔍</span>
+          <input
+            style={styles.searchInput}
+            placeholder="Search by plant name, location, or observation ID"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery.length > 0 && (
+            <button 
+              style={styles.clearButton}
+              onClick={() => setSearchQuery('')}
+              aria-label="Clear search"
+            >
+              ×
+            </button>
+          )}
+        </div>
 
+        {/* ✅ Table structure */}
         <div style={styles.table}>
           <div style={styles.tableHeader}>
-            <div style={styles.headerCell}>Plant</div>
-            <div style={styles.headerCell}>Confidence</div>
-            <div style={{ ...styles.headerCell, textAlign: 'right' }}>Action</div>
+            <div style={styles.headerCellWide}>Plant</div>
+            <div style={styles.headerCell}>Score</div>
+            <div style={styles.headerCellAction}>Action</div>
           </div>
 
           {filtered.length === 0 ? (
             <div style={styles.emptyState}>
-              No flagged observations pending review.
+              <div style={styles.emptyStateContent}>
+                <span style={styles.emptyStateIcon}>🌿</span>
+                <p style={styles.emptyStateText}>
+                  {searchQuery ? 'No matching flagged plants found.' : 'No flagged plants awaiting review.'}
+                </p>
+              </div>
             </div>
           ) : (
             filtered.map((item) => (
               <div key={item.observation_id} style={styles.tableRow}>
                 <div style={styles.cellWide}>
                   <div style={styles.plantText}>{item.plant_name}</div>
-                  <div style={styles.metaText}>
-                    Obs {item.observation_id} • {item.location}
+                  <div style={styles.metaText}>{item.location}</div>
+                  {/* REMOVED: Endangered indicator from table */}
+                </div>
+                <div style={styles.cell}>
+                  <div style={styles.confidenceCell}>
+                    {toPercent(item.confidence)}
+                    {/* NEW: Low confidence badge */}
+                    {isLowConfidence(item.confidence) && (
+                      <span className="low-confidence-badge">Low</span>
+                    )}
                   </div>
                 </div>
-                <div style={styles.cell}>{toPercent(item.confidence)}</div>
                 <div style={styles.cellAction}>
                   <button
                     style={styles.reviewButton}
@@ -376,13 +414,16 @@ export default function FlaggedPlants() {
               <button className="modal-close" onClick={handleCloseModal}>×</button>
               
               <div className="modal-scroll">
-                <div className="photo-wrapper" onClick={() => setShowImageModal(true)}>
+                {/* FIXED: Stable image container */}
+                <div className="photo-wrapper" onClick={() => handleImageModal(true)}>
                   <img 
                     src={selectedObservation.photo} 
                     alt={selectedObservation.plant_name}
                     className="photo"
+                    onLoad={() => setImageLoaded(true)}
                     onError={(e) => {
-                      e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yMDAgMTUwQzIxMy44MDcgMTUwIDIyNSAxMzguODA3IDIyNSAxMjVDMjI1IDExMS4xOTMgMjEzLjgwNyAxMDAgMjAwIDEwMEMxODYuMTkzIDEwMCAxNzUgMTExLjE5MyAxNzUgMTI1QzE3NSAxMzguODA3IDE4Ni4xOTMgMTUwIDIwMCAxNTBaTTIwMCAxNzVDMTczLjM4NiAxNzUgMTUwIDE5Ny4zODYgMTUwIDIyNEgxNzVDMTc1IDIwNS4xNjkgMTgxLjE2OSAxODcgMjAwIDE4N0MyMTguODMxIDE4NyAyMjUgMjA1LjE2OSAyMjUgMjI0SDI1MEMyNTAgMTk3LjM4NiAyMjYuNjE0IDE3NSAyMDAgMTc1WiIgZmlsbD0iIzlDQTVCOSIvPgo8L3N2Zz4K';
+                      e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yMDAgMTUwQzIxMy44MDcgMTUwIDIyNSAxMzguODA3IDIyNSAxMjVDMjI1IDExMS4xOTMgMjEzLjgwNyAxMDAgMjAwIDEwMEMxODYuMTkzIDEwMCAxNzUgMTExLjE5MyAxNzUgMTI1QzE3IDEzOC44MDcgMTg2LjE5MyAxNTAgMjAwIDE1MFoiIGZpbGw9IiM5Q0E1QjkiLz4KPC9zdmc+';
+                      setImageLoaded(true);
                     }}
                   />
                   <div className="resize-badge">🔍</div>
@@ -391,22 +432,37 @@ export default function FlaggedPlants() {
                 <h1 style={styles.modalTitle}>{selectedObservation.plant_name}</h1>
                 <div style={styles.modalSubtitle}>Observation {selectedObservation.observation_id}</div>
 
+                {/* Confidence section with low confidence note */}
                 <div style={styles.section}>
                   <div style={styles.sectionLabel}>Confidence</div>
-                  <div style={styles.sectionValue}>{Math.round(selectedObservation.confidence * 100)}%</div>
+                  <div style={styles.sectionValue}>
+                    {Math.round(selectedObservation.confidence * 100)}%
+                    {isLowConfidence(selectedObservation.confidence) && (
+                      <span className="low-confidence-badge" style={{marginLeft: '8px'}}>Low</span>
+                    )}
+                  </div>
+                  {isLowConfidence(selectedObservation.confidence) && (
+                    <div style={styles.sectionMeta}>Low confidence - requires manual review</div>
+                  )}
                 </div>
 
+                {/* Location section with endangered badge */}
                 <div style={styles.section}>
                   <div style={styles.sectionLabel}>Location</div>
                   <div style={styles.sectionValue}>{selectedObservation.location}</div>
+                  {selectedObservation.is_endangered && (
+                    <div className="endangered-badge">⚠️ Endangered Species</div>
+                  )}
                 </div>
 
+                {/* Submission details */}
                 <div style={styles.section}>
                   <div style={styles.sectionLabel}>Submitted</div>
                   <div style={styles.sectionValue}>{formatDate(selectedObservation.submitted_at)}</div>
                   <div style={styles.sectionMeta}>Flagged by {selectedObservation.user}</div>
                 </div>
 
+                {/* Action buttons */}
                 <div style={styles.actionsRow}>
                   <button style={styles.approveButton} onClick={handleApprove}>
                     Approve
@@ -420,31 +476,72 @@ export default function FlaggedPlants() {
           </div>
         )}
 
-        {/* ✅ Image Preview Modal */}
+        {/* ✅ FIXED: Stable Image Preview Modal */}
         {showImageModal && selectedObservation && (
-          <div className="image-modal-overlay" onClick={() => setShowImageModal(false)}>
-            <div className="image-modal-content" onClick={(e) => e.stopPropagation()}>
+          <div 
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.95)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 2000,
+              padding: '40px 20px'
+            }}
+            onClick={() => handleImageModal(false)}
+          >
+            <div 
+              style={{
+                flex: 1,
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                width: '100%',
+                maxHeight: '80vh'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
               <img 
                 src={selectedObservation.photo} 
                 alt={selectedObservation.plant_name}
-                className="image-modal-image"
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                  objectFit: 'contain',
+                  borderRadius: '8px'
+                }}
                 onError={(e) => {
-                  e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yMDAgMTUwQzIxMy44MDcgMTUwIDIyNSAxMzguODA3IDIyNSAxMjVDMjI1IDExMS4xOTMgMjEzLjgwNyAxMDAgMjAwIDEwMEMxODYuMTkzIDEwMCAxNzUgMTExLjE5MyAxNzUgMTI1QzE3NSAxMzguODA3IDE4Ni4xOTMgMTUwIDIwMCAxNTBaTTIwMCAxNzVDMTczLjM4NiAxNzUgMTUwIDE5Ny4zODYgMTUwIDIyNEgxNzVDMTc1IDIwNS4xNjkgMTgxLjE2OSAxODcgMjAwIDE4N0MyMTguODMxIDE4NyAyMjUgMjA1LjE2OSAyMjUgMjI0SDI1MEMyNTAgMTk3LjM4NiAyMjYuNjE0IDE3NSAyMDAgMTc1WiIgZmlsbD0iIzlDQTVCOSIvPgo8L3N2Zz4K';
+                  e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yMDAgMTUwQzIxMy44MDcgMTUwIDIyNSAxMzguODA3IDIyNSAxMjVDMjI1IDExMS4xOTMgMjEzLjgwNyAxMDAgMjAwIDEwMEMxODYuMTkzIDEwMCAxNzUgMTExLjE5MyAxNzUgMTI1QzE3IDEzOC44MDcgMTg2LjE5MyAxNTAgMjAwIDE1MFoiIGZpbGw9IiM5Q0E1QjkiLz4KPC9zdmc+';
                 }}
               />
-              <button 
-                className="image-modal-close" 
-                onClick={() => setShowImageModal(false)}
-              >
-                Close
-              </button>
             </div>
+            <button 
+              style={{
+                marginTop: '20px',
+                backgroundColor: '#1E88E5',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '12px 24px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer'
+              }}
+              onClick={() => handleImageModal(false)}
+            >
+              Close
+            </button>
           </div>
         )}
 
         {/* ✅ Identify Modal */}
         {showIdentifyModal && (
-          <div className="identify-modal-overlay" onClick={() => setShowIdentifyModal(false)}>
+          <div className="identify-modal-overlay" onClick={() => handleIdentifyModal(false)}>
             <div className="identify-modal-content" onClick={(e) => e.stopPropagation()}>
               <h3 className="identify-title">Confirm Plant Identity</h3>
               <div className="identify-label">Plant Name</div>
@@ -459,7 +556,7 @@ export default function FlaggedPlants() {
               <div className="identify-actions">
                 <button 
                   className="cancel-button"
-                  onClick={() => setShowIdentifyModal(false)}
+                  onClick={() => handleIdentifyModal(false)}
                 >
                   Cancel
                 </button>
@@ -502,21 +599,54 @@ const styles = {
     color: '#4B5563',
     margin: 0,
   },
-  search: {
-    padding: '10px 14px',
-    borderRadius: 8,
-    border: '1px solid #E2E8F0',
-    width: '30%',
-    marginBottom: 16,
-    fontSize: 14,
-    backgroundColor: '#FFFFFF',
+  // Search bar styles matching mobile
+  searchBar: {
+    marginTop: "16px",
+    marginBottom: "20px",
+    display: "flex",
+    alignItems: "center",
+    padding: "0 14px",
+    height: "44px",
+    borderRadius: "14px",
+    backgroundColor: "#FFFFFF",
+    border: "1px solid #E2E8F0",
+    gap: "8px",
+    maxWidth: "500px",
+  },
+  searchIcon: {
+    fontSize: "16px",
+    color: "#64748B",
+  },
+  searchInput: {
+    flex: 1,
+    border: "none",
+    outline: "none",
+    fontSize: "14px",
+    color: "#0F172A",
+    background: "transparent",
+  },
+  clearButton: {
+    background: "none",
+    border: "none",
+    fontSize: "18px",
+    color: "#94A3B8",
+    cursor: "pointer",
+    padding: "4px",
+    borderRadius: "50%",
+    width: "24px",
+    height: "24px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
   table: {
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
     overflow: 'hidden',
     border: '1px solid #E2E8F0',
+    boxShadow: '0 4px 6px rgba(0,0,0,0.04)',
   },
+  // Table header to match mobile structure
   tableHeader: {
     display: 'grid',
     gridTemplateColumns: '1.8fr 0.9fr 120px',
@@ -524,12 +654,30 @@ const styles = {
     padding: '14px 16px',
     borderBottom: '1px solid #E2E8F0',
   },
+  headerCellWide: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+    textTransform: 'uppercase',
+    letterSpacing: '0.6px',
+  },
   headerCell: {
     fontSize: 13,
     fontWeight: '700',
     color: '#0F172A',
     textTransform: 'uppercase',
     letterSpacing: '0.6px',
+    textAlign: 'right',
+    paddingRight: '12px',
+  },
+  headerCellAction: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+    textTransform: 'uppercase',
+    letterSpacing: '0.6px',
+    textAlign: 'right',
+    paddingRight: '4px',
   },
   tableRow: {
     display: 'grid',
@@ -555,6 +703,15 @@ const styles = {
   cell: {
     fontSize: 13,
     color: '#334155',
+    textAlign: 'right',
+    paddingRight: '12px',
+  },
+  // Confidence cell with badge
+  confidenceCell: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: '8px',
   },
   cellAction: {
     display: 'flex',
@@ -570,10 +727,25 @@ const styles = {
     fontWeight: '600',
     cursor: 'pointer',
   },
+  // Empty state to match mobile
   emptyState: {
-    padding: '40px 20px',
+    padding: '60px 20px',
     textAlign: 'center',
-    color: '#4B5563',
+  },
+  emptyStateContent: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '12px',
+  },
+  emptyStateIcon: {
+    fontSize: '32px',
+    color: '#94A3B8',
+  },
+  emptyStateText: {
+    fontSize: '14px',
+    color: '#64748B',
+    margin: 0,
   },
   // Modal Styles
   modalTitle: {
@@ -596,6 +768,7 @@ const styles = {
     padding: 16,
     marginBottom: 16,
     boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)',
+    gap: '6px',
   },
   sectionLabel: {
     fontSize: 12,
@@ -610,6 +783,8 @@ const styles = {
     fontWeight: '600',
     color: '#1F2A37',
     margin: 0,
+    display: 'flex',
+    alignItems: 'center',
   },
   sectionMeta: {
     fontSize: 12,
@@ -621,9 +796,10 @@ const styles = {
     gap: 12,
     marginTop: 20,
   },
+  // Button colors to match mobile app
   approveButton: {
     flex: 1,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#166534', // Green from mobile
     borderRadius: 12,
     padding: '14px',
     border: 'none',
@@ -636,7 +812,7 @@ const styles = {
   },
   identifyButton: {
     flex: 1,
-    backgroundColor: '#1E88E5',
+    backgroundColor: '#1D4ED8', // Blue from mobile
     borderRadius: 12,
     padding: '14px',
     border: 'none',

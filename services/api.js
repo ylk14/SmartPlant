@@ -28,6 +28,25 @@ export const loginUser = async (email, password) => {
   });
 };
 
+//handle MFA
+export const verifyMFA = async (userId, code) => {
+  // This would call your actual backend
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({ success: true });
+    }, 1000);
+  });
+};
+
+export const resendMFACode = async (userId) => {
+  // This would call your actual backend
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({ success: true });
+    }, 1000);
+  });
+};
+
 //remove mock and use this real one
 //export const loginUser = async (email, password) => {
   //try {
@@ -54,7 +73,7 @@ export const loginUser = async (email, password) => {
 // ======================
 // SIGN UP FUNCTION
 // ======================
-// ✅ Temporary mock backend
+// Temporary mock backend
 //replace the fake version after come out with the real one
 export const registerUser = async (userData) => { 
   console.log("Registering user:", userData);

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 export default function MFASetupModal({ user, onClose, onMFASetupComplete }) {
-  const [step, setStep] = useState(1); // 1: QR code, 2: Verification
+  const [step, setStep] = useState(1); 
   const [verificationCode, setVerificationCode] = useState('');
   const [qrCodeUrl, setQrCodeUrl] = useState(''); // Will be provided by cybersecurity backend
 
