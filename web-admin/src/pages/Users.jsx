@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import UserDetailModal from "../components/UserDetailModal";
+import SearchIcon from "@mui/icons-material/Search";
+import PeopleIcon from "@mui/icons-material/People";
 
 // Mock data fallback (remove when backend API ready)
 const MOCK_USERS = [
@@ -58,7 +60,7 @@ export default function Users() {
           String(user.user_id).includes(normalizedQuery)
         );
       })
-      .sort((a, b) => a.username.localeCompare(b.username));
+      .sort((a, b) => a.user_id - b.user_id); // Changed to sort by user_id in ascending order
   }, [searchQuery, users]);
 
   const toggleStatus = (id) => {
@@ -115,7 +117,7 @@ export default function Users() {
 
       {/* Search Bar from mobile */}
       <div style={styles.searchBar}>
-        <span style={styles.searchIcon}>🔍</span>
+        <SearchIcon style={styles.searchIcon} />
         <input
           type="text"
           style={styles.searchInput}
@@ -153,7 +155,7 @@ export default function Users() {
               <tr>
                 <td colSpan="7" style={styles.emptyState}>
                   <div style={styles.emptyStateContent}>
-                    <span style={styles.emptyStateIcon}>👥</span>
+                    <PeopleIcon style={styles.emptyStateIcon} />
                     <p style={styles.emptyStateText}>No users found. Try a different search.</p>
                   </div>
                 </td>
@@ -201,7 +203,7 @@ export default function Users() {
                   </td>
 
                   {/* Centered status text + toggle */}
-                  <td style={{ ...styles.td, textAlign: "center" }}>
+                  <td style={styles.td}>
                     <div style={styles.statusContainer}>
                       <div style={styles.statusText}>
                         {user.active ? "Active" : "Inactive"}
@@ -225,7 +227,7 @@ export default function Users() {
                   </td>
 
                   {/* Centered View button */}
-                  <td style={{ ...styles.td, textAlign: "center" }}>
+                  <td style={styles.td}>
                     <button
                       style={styles.viewBtn}
                       onClick={() => setSelectedUser(user)}
@@ -288,7 +290,7 @@ const styles = {
   },
 
   searchIcon: {
-    fontSize: "16px",
+    fontSize: "20px",
     color: "#64748B",
   },
 
@@ -330,7 +332,7 @@ const styles = {
   },
 
   th: {
-    textAlign: "left",
+    textAlign: "center", // Changed to center align table headers
     padding: "16px",
     background: "#EBEEF2",
     fontWeight: "600",
@@ -339,9 +341,11 @@ const styles = {
   },
 
   td: {
+    textAlign: "center", // Changed to center align table data
     padding: "16px",
     borderBottom: "1px solid #E7EAF0",
     fontSize: "14px",
+    verticalAlign: "middle",
   },
 
   // Username inactive style from mobile
@@ -363,7 +367,7 @@ const styles = {
   },
 
   emptyStateIcon: {
-    fontSize: "24px",
+    fontSize: "48px",
     color: "#94A3B8",
   },
 
@@ -376,6 +380,8 @@ const styles = {
   // Role button + dropdown
   roleColumn: {
     position: "relative",
+    display: "flex",
+    justifyContent: "center",
   },
 
   roleBtn: {
@@ -392,7 +398,8 @@ const styles = {
   dropdown: {
     position: "absolute",
     top: "38px",
-    left: 0,
+    left: "50%",
+    transform: "translateX(-50%)",
     background: "#fff",
     border: "1px solid #E2E8F0",
     width: "160px",

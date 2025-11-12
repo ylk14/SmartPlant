@@ -1,11 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import IotDetailModal from '../components/IotDetailModal';
+import SearchIcon from '@mui/icons-material/Search';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import WarningIcon from '@mui/icons-material/Warning';
+import SensorsIcon from '@mui/icons-material/Sensors';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 const MOCK_IOT_DEVICES = [
   {
     device_id: 'DEV-001',
+    device_id_raw: 1,
     device_name: 'Soil Monitor A1',
-    species: 'Rafflesia arnoldii',
+    species_name: 'Rafflesia arnoldii',
     location: {
       name: 'Bako National Park',
       latitude: 1.4667,
@@ -22,8 +29,9 @@ const MOCK_IOT_DEVICES = [
   },
   {
     device_id: 'DEV-014',
+    device_id_raw: 14,
     device_name: 'Weather Station B3',
-    species: 'Nepenthes rajah',
+    species_name: 'Nepenthes rajah',
     location: {
       name: 'Santubong Forest Reserve',
       latitude: 1.595,
@@ -36,12 +44,13 @@ const MOCK_IOT_DEVICES = [
       motion_detected: true,
     },
     last_updated: '2025-10-21T12:41:00Z',
-    alerts: ['Humidity', 'Motion'],
+    alerts: ['humidity', 'motion'],
   },
   {
     device_id: 'DEV-020',
+    device_id_raw: 20,
     device_name: 'Trail Camera C2',
-    species: 'Dipterocarpus sarawakensis',
+    species_name: 'Dipterocarpus sarawakensis',
     location: {
       name: 'Lambir Hills',
       latitude: 1.285,
@@ -54,24 +63,71 @@ const MOCK_IOT_DEVICES = [
       motion_detected: false,
     },
     last_updated: '2025-10-21T12:36:00Z',
-    alerts: ['Soil Moisture'],
+    alerts: ['soil_moisture'],
   },
 ];
 
-const IoT = () => {
+const Iot = () => {
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [devices, setDevices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const formatDate = (iso) => {
-    const date = new Date(iso);
-    return Number.isNaN(date.getTime()) ? iso : date.toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
+  // Load data function
+  const loadData = async () => {
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setDevices(MOCK_IOT_DEVICES);
+    } catch (err) {
+      console.error("Failed to load data:", err);
+    }
   };
+
+  // Initial load
+  useEffect(() => {
+    const loadInitialData = async () => {
+      setLoading(true);
+      await loadData();
+      setLoading(false);
+    };
+    
+    loadInitialData();
+    
+    // Auto-refresh every 30 seconds
+    const intervalId = setInterval(loadData, 30000);
+    return () => clearInterval(intervalId);
+  }, []);
+
+  // Manual refresh
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
+  // Filter devices based on search
+  const filteredDevices = useMemo(() => {
+    if (!searchQuery.trim()) return devices;
+    
+    const normalizedQuery = searchQuery.toLowerCase();
+    return devices.filter((device) => {
+      const searchableText = [
+        device.device_name,
+        device.device_id,
+        device.species_name,
+        device.location.name,
+      ].join(' ').toLowerCase();
+      
+      return searchableText.includes(normalizedQuery);
+    });
+  }, [searchQuery, devices]);
+
+  // Separate alert devices
+  const alertDevices = filteredDevices.filter(device => device.alerts && device.alerts.length > 0);
+  const normalDevices = filteredDevices.filter(device => !device.alerts || device.alerts.length === 0);
 
   const handleViewDevice = (device) => {
     setSelectedDevice(device);
@@ -83,110 +139,167 @@ const IoT = () => {
     setSelectedDevice(null);
   };
 
-  const renderSensorReadings = (device) => {
-    const { temperature, humidity, soil_moisture, motion_detected } = device.readings;
-    
-    return (
-      <div style={styles.sensorsGroup}>
-        <div style={{
-          ...styles.sensorReading,
-          ...(device.alerts.includes('Temperature') ? styles.sensorAlert : {})
-        }}>
-          <span style={styles.sensorIcon}>🌡️</span>
-          <span style={styles.sensorValue}>{temperature}°C</span>
-        </div>
-        <div style={{
-          ...styles.sensorReading,
-          ...(device.alerts.includes('Humidity') ? styles.sensorAlert : {})
-        }}>
-          <span style={styles.sensorIcon}>💧</span>
-          <span style={styles.sensorValue}>{humidity}%</span>
-        </div>
-        <div style={{
-          ...styles.sensorReading,
-          ...(device.alerts.includes('Soil Moisture') ? styles.sensorAlert : {})
-        }}>
-          <span style={styles.sensorIcon}>🌱</span>
-          <span style={styles.sensorValue}>{soil_moisture}%</span>
-        </div>
-        <div style={{
-          ...styles.sensorReading,
-          ...(device.alerts.includes('Motion') ? styles.sensorAlert : {})
-        }}>
-          <span style={styles.sensorIcon}>🚶</span>
-          <span style={styles.sensorValue}>{motion_detected ? 'Detected' : 'None'}</span>
-        </div>
-      </div>
-    );
+  // Resolve alerts
+  const handleResolveAlerts = (deviceId) => {
+    setDevices(prev => prev.map(device => 
+      device.device_id === deviceId 
+        ? { ...device, alerts: [] }
+        : device
+    ));
   };
 
-  const renderDeviceRow = (device) => {
-    const hasAlerts = device.alerts && device.alerts.length > 0;
-    
+  // Show loading state
+  if (loading) {
     return (
-      <div key={device.device_id} style={{
-        ...styles.tableRow,
-        ...(hasAlerts ? styles.alertRow : {})
-      }}>
-        <div style={styles.tableCellPlant}>
-          <div style={styles.plantInfo}>
-            <div style={styles.plantName}>{device.species}</div>
-            <div style={styles.plantLocation}>{device.location.name}</div>
-            {hasAlerts && (
-              <div style={styles.alertBadge}>
-                ⚠️ {device.alerts.length} Alert{device.alerts.length > 1 ? 's' : ''}
-              </div>
-            )}
-          </div>
-        </div>
-        <div style={styles.tableCellDevice}>
-          <div style={styles.deviceId}>{device.device_id}</div>
-          <div style={styles.deviceName}>{device.device_name}</div>
-        </div>
-        <div style={styles.tableCellSensors}>
-          {renderSensorReadings(device)}
-        </div>
-        <div style={styles.tableCellUpdated}>
-          <div style={styles.lastUpdated}>
-            {formatDate(device.last_updated)}
-          </div>
-        </div>
-        <div style={styles.tableCellAction}>
-          <button
-            style={styles.viewDetailsBtn}
-            onClick={() => handleViewDevice(device)}
-          >
-            View Details
-          </button>
+      <div style={styles.container}>
+        <div style={styles.loading}>
+          <div style={styles.spinner}></div>
+          <p>Loading devices...</p>
         </div>
       </div>
     );
-  };
+  }
 
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <h1 style={styles.title}>IoT Monitoring Dashboard</h1>
-        <p style={styles.subtitle}>
-          Real-time sensor data from all connected devices. Click "View Details" for comprehensive analytics.
-        </p>
+        <h1 style={styles.title}>IoT Monitoring</h1>
+        <p style={styles.subtitle}>Real-time sensor data from all connected devices</p>
       </div>
 
-      <div style={styles.tableContainer}>
-        <div style={styles.tableHeader}>
-          <div style={styles.tableHeaderCellPlant}>Plant & Location</div>
-          <div style={styles.tableHeaderCellDevice}>Device</div>
-          <div style={styles.tableHeaderCellSensors}>Sensor Readings</div>
-          <div style={styles.tableHeaderCellUpdated}>Last Updated</div>
-          <div style={styles.tableHeaderCellAction}>Actions</div>
-        </div>
-
-        <div style={styles.tableBody}>
-          {MOCK_IOT_DEVICES.map(device => renderDeviceRow(device))}
-        </div>
+      {/* Search Bar */}
+      <div style={styles.searchBar}>
+        <SearchIcon style={styles.searchIcon} />
+        <input
+          style={styles.searchInput}
+          placeholder="Search by device, plant, or location"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        {searchQuery && (
+          <button 
+            style={styles.clearButton}
+            onClick={() => setSearchQuery('')}
+          >
+            ×
+          </button>
+        )}
       </div>
 
-      {isModalOpen && (
+      {/* Refresh Button */}
+      <div style={styles.refreshContainer}>
+        <button 
+          style={styles.refreshButton}
+          onClick={onRefresh}
+          disabled={refreshing}
+        >
+          <RefreshIcon style={styles.refreshIcon} />
+          {refreshing ? 'Refreshing...' : 'Refresh Data'}
+        </button>
+      </div>
+
+      {/* Alert Devices Section */}
+      {alertDevices.length > 0 && (
+        <div style={styles.alertSection}>
+          <div style={styles.sectionHeader}>
+            <div style={styles.titleWithIcon}>
+              <WarningIcon style={styles.alertTitleIcon} />
+              <h3 style={styles.alertTitle}>Devices with Alerts</h3>
+            </div>
+            <div style={styles.alertCount}>{alertDevices.length} device(s) need attention</div>
+          </div>
+          <div style={styles.table}>
+            {alertDevices.map(device => (
+              <div key={device.device_id} style={styles.alertRow}>
+                <div style={styles.cell}>
+                  <div style={styles.plantName}>{device.species_name}</div>
+                  <div style={styles.location}>{device.location.name}</div>
+                  <div style={styles.alertBadge}>
+                    Alerts: {device.alerts.join(', ')}
+                  </div>
+                </div>
+                <div style={styles.cell}>
+                  <div style={styles.deviceId}>{device.device_id}</div>
+                  <div style={styles.deviceName}>{device.device_name}</div>
+                </div>
+                <div style={styles.cell}>
+                  <div style={styles.actions}>
+                    <button 
+                      style={styles.resolveButton}
+                      onClick={() => handleResolveAlerts(device.device_id)}
+                    >
+                      <CheckCircleIcon style={styles.buttonIcon} />
+                      Resolve
+                    </button>
+                    <button 
+                      style={styles.viewButton}
+                      onClick={() => handleViewDevice(device)}
+                    >
+                      <VisibilityIcon style={styles.buttonIcon} />
+                      View
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Normal Devices Section */}
+      <div style={styles.section}>
+        <div style={styles.sectionHeader}>
+          <div style={styles.titleWithIcon}>
+            <SensorsIcon style={styles.sectionTitleIcon} />
+            <h3 style={styles.sectionTitle}>All Devices</h3>
+          </div>
+          <div style={styles.deviceCount}>{normalDevices.length} device(s) normal</div>
+        </div>
+        
+        {normalDevices.length > 0 ? (
+          <div style={styles.table}>
+            {normalDevices.map(device => (
+              <div key={device.device_id} style={styles.row}>
+                <div style={styles.cell}>
+                  <div style={styles.plantName}>{device.species_name}</div>
+                  <div style={styles.location}>{device.location.name}</div>
+                </div>
+                <div style={styles.cell}>
+                  <div style={styles.deviceId}>{device.device_id}</div>
+                  <div style={styles.deviceName}>{device.device_name}</div>
+                </div>
+                <div style={styles.cell}>
+                  <button 
+                    style={styles.viewButton}
+                    onClick={() => handleViewDevice(device)}
+                  >
+                    <VisibilityIcon style={styles.buttonIcon} />
+                    View
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={styles.emptyState}>
+            {searchQuery ? (
+              <>
+                <SearchIcon style={styles.emptyIcon} />
+                <p style={styles.emptyText}>No devices found for "{searchQuery}"</p>
+                <p style={styles.emptySubtext}>Try adjusting your search terms</p>
+              </>
+            ) : (
+              <>
+                <SensorsIcon style={styles.emptyIcon} />
+                <p style={styles.emptyText}>No devices available</p>
+                <p style={styles.emptySubtext}>Devices will appear here when connected</p>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {isModalOpen && selectedDevice && (
         <IotDetailModal 
           device={selectedDevice} 
           onClose={handleCloseModal} 
@@ -198,158 +311,275 @@ const IoT = () => {
 
 const styles = {
   container: {
-    backgroundColor: '#F6F9F4',
-    padding: '24px',
+    padding: '20px',
+    backgroundColor: '#f6f9f4',
     minHeight: '100vh',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    fontFamily: 'Arial, sans-serif',
   },
   header: {
-    marginBottom: '32px',
+    marginBottom: '20px',
   },
   title: {
-    fontSize: '28px',
-    fontWeight: '700',
-    color: '#1F2A37',
+    fontSize: '24px',
+    fontWeight: 'bold',
+    color: '#1f2a37',
     margin: '0 0 8px 0',
   },
   subtitle: {
     fontSize: '14px',
-    color: '#6B7280',
-    margin: '0',
-    lineHeight: '1.5',
+    color: '#6b7280',
+    margin: 0,
   },
-  tableContainer: {
-    backgroundColor: '#FFFFFF',
+  searchBar: {
+    display: 'flex',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    border: '1px solid #e2e8f0',
     borderRadius: '12px',
-    border: '1px solid #E5E7EB',
-    overflow: 'hidden',
-    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+    padding: '12px 16px',
+    marginBottom: '16px',
+    maxWidth: '500px',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
   },
-  tableHeader: {
-    display: 'grid',
-    gridTemplateColumns: '2fr 1fr 2fr 1fr 120px',
-    backgroundColor: '#F8FAFC',
-    borderBottom: '1px solid #E5E7EB',
-    padding: '16px 20px',
+  searchIcon: {
+    color: '#64748b',
+    fontSize: '20px',
+    marginRight: '12px',
+  },
+  searchInput: {
+    flex: 1,
+    border: 'none',
+    outline: 'none',
+    fontSize: '14px',
+    color: '#0f172a',
+    background: 'transparent',
+  },
+  clearButton: {
+    background: 'none',
+    border: 'none',
+    fontSize: '18px',
+    color: '#94a3b8',
+    cursor: 'pointer',
+    padding: '4px',
+    borderRadius: '50%',
+    width: '24px',
+    height: '24px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  refreshContainer: {
+    marginBottom: '24px',
+  },
+  refreshButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    backgroundColor: '#3b82f6',
+    color: 'white',
+    border: 'none',
+    padding: '10px 16px',
+    borderRadius: '8px',
+    fontSize: '14px',
+    cursor: 'pointer',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+  },
+  refreshIcon: {
+    fontSize: '18px',
+  },
+  alertSection: {
+    marginBottom: '24px',
+  },
+  section: {
+    marginBottom: '24px',
+  },
+  sectionHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '12px',
+  },
+  titleWithIcon: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  alertTitleIcon: {
+    color: '#dc2626',
+    fontSize: '20px',
+  },
+  alertTitle: {
+    fontSize: '18px',
+    fontWeight: 'bold',
+    color: '#dc2626',
+    margin: 0,
+  },
+  sectionTitleIcon: {
+    color: '#1f2a37',
+    fontSize: '20px',
+  },
+  sectionTitle: {
+    fontSize: '18px',
+    fontWeight: 'bold',
+    color: '#1f2a37',
+    margin: 0,
+  },
+  alertCount: {
     fontSize: '12px',
+    color: '#dc2626',
     fontWeight: '600',
-    color: '#374151',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
   },
-  tableHeaderCellPlant: { textAlign: 'left' },
-  tableHeaderCellDevice: { textAlign: 'left' },
-  tableHeaderCellSensors: { textAlign: 'left' },
-  tableHeaderCellUpdated: { textAlign: 'left' },
-  tableHeaderCellAction: { textAlign: 'center' },
-  tableBody: {
-    maxHeight: '600px',
-    overflowY: 'auto',
+  deviceCount: {
+    fontSize: '12px',
+    color: '#6b7280',
+    fontWeight: '600',
   },
-  tableRow: {
-    display: 'grid',
-    gridTemplateColumns: '2fr 1fr 2fr 1fr 120px',
-    padding: '16px 20px',
-    borderBottom: '1px solid #F3F4F6',
+  table: {
+    backgroundColor: 'white',
+    borderRadius: '12px',
+    border: '1px solid #e2e8f0',
+    overflow: 'hidden',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+  },
+  row: {
+    display: 'flex',
+    padding: '16px',
+    borderBottom: '1px solid #f1f5f9',
     alignItems: 'center',
     transition: 'background-color 0.2s',
   },
   alertRow: {
-    backgroundColor: '#FEF2F2',
-    borderLeft: '4px solid #EF4444',
-  },
-  tableCellPlant: {
-    textAlign: 'left',
-  },
-  tableCellDevice: {
-    textAlign: 'left',
-  },
-  tableCellSensors: {
-    textAlign: 'left',
-  },
-  tableCellUpdated: {
-    textAlign: 'left',
-  },
-  tableCellAction: {
-    textAlign: 'center',
-  },
-  plantInfo: {
     display: 'flex',
-    flexDirection: 'column',
-    gap: '4px',
+    padding: '16px',
+    borderBottom: '1px solid #f1f5f9',
+    alignItems: 'center',
+    backgroundColor: '#fef2f2',
+    borderLeft: '4px solid #dc2626',
+  },
+  cell: {
+    flex: 1,
+    padding: '0 8px',
   },
   plantName: {
     fontSize: '14px',
     fontWeight: '600',
-    color: '#111827',
+    color: '#1f2a37',
+    marginBottom: '4px',
   },
-  plantLocation: {
+  location: {
     fontSize: '12px',
-    color: '#6B7280',
+    color: '#64748b',
   },
   alertBadge: {
     fontSize: '11px',
+    color: '#dc2626',
     fontWeight: '600',
-    color: '#DC2626',
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#fee2e2',
     padding: '2px 8px',
     borderRadius: '12px',
     marginTop: '4px',
     display: 'inline-block',
-    width: 'fit-content',
   },
   deviceId: {
     fontSize: '14px',
     fontWeight: '600',
-    color: '#111827',
+    color: '#1f2a37',
+    marginBottom: '4px',
   },
   deviceName: {
     fontSize: '12px',
-    color: '#6B7280',
+    color: '#6b7280',
   },
-  sensorsGroup: {
+  actions: {
     display: 'flex',
-    gap: '16px',
-    alignItems: 'center',
+    gap: '8px',
+    justifyContent: 'flex-end',
   },
-  sensorReading: {
+  viewButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    backgroundColor: '#1e88e5',
+    color: 'white',
+    border: 'none',
+    padding: '8px 12px',
+    borderRadius: '6px',
+    fontSize: '12px',
+    cursor: 'pointer',
+    fontWeight: '600',
+  },
+  resolveButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    backgroundColor: '#10b981',
+    color: 'white',
+    border: 'none',
+    padding: '8px 12px',
+    borderRadius: '6px',
+    fontSize: '12px',
+    cursor: 'pointer',
+    fontWeight: '600',
+  },
+  buttonIcon: {
+    fontSize: '16px',
+  },
+  emptyState: {
+    textAlign: 'center',
+    padding: '40px 20px',
+    backgroundColor: 'white',
+    borderRadius: '12px',
+    border: '1px solid #e2e8f0',
+  },
+  emptyIcon: {
+    fontSize: '48px',
+    marginBottom: '16px',
+    color: '#9ca3af',
+  },
+  emptyText: {
+    fontSize: '16px',
+    fontWeight: '600',
+    color: '#374151',
+    margin: '0 0 8px 0',
+  },
+  emptySubtext: {
+    fontSize: '14px',
+    color: '#6b7280',
+    margin: 0,
+  },
+  loading: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '4px',
-    padding: '8px',
-    borderRadius: '8px',
-    backgroundColor: '#F8FAFC',
-    minWidth: '60px',
+    justifyContent: 'center',
+    height: '200px',
   },
-  sensorAlert: {
-    backgroundColor: '#FEF2F2',
-    border: '1px solid #FECACA',
-  },
-  sensorIcon: {
-    fontSize: '16px',
-  },
-  sensorValue: {
-    fontSize: '12px',
-    fontWeight: '600',
-    color: '#374151',
-  },
-  lastUpdated: {
-    fontSize: '12px',
-    color: '#6B7280',
-    fontFamily: 'monospace',
-  },
-  viewDetailsBtn: {
-    backgroundColor: '#3B82F6',
-    color: '#FFFFFF',
-    border: 'none',
-    padding: '8px 16px',
-    borderRadius: '6px',
-    fontSize: '12px',
-    fontWeight: '500',
-    cursor: 'pointer',
-    transition: 'background-color 0.2s',
+  spinner: {
+    width: '32px',
+    height: '32px',
+    border: '3px solid #f3f3f3',
+    borderTop: '3px solid #3182ce',
+    borderRadius: '50%',
+    animation: 'spin 1s linear infinite',
+    marginBottom: '12px',
   },
 };
 
-export default IoT;
+// Add CSS for spinner
+if (typeof document !== 'undefined') {
+  const styleSheet = document.styleSheets[0];
+  if (styleSheet) {
+    try {
+      styleSheet.insertRule(`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `, styleSheet.cssRules.length);
+    } catch (e) {
+      console.log('Could not insert spinner animation');
+    }
+  }
+}
+
+export default Iot;
