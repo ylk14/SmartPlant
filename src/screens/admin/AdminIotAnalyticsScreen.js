@@ -7,12 +7,12 @@ import {
   TouchableOpacity,
   ScrollView,
   useWindowDimensions,
-  ActivityIndicator, // <-- Import ActivityIndicator
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Line, Circle, Polyline } from 'react-native-svg';
-import { fetchDeviceHistory } from '../../../services/api'; // <-- 1. IMPORT REAL API
+import { fetchDeviceHistory } from '../../../services/api';
 
 const HOURS = 60 * 60 * 1000;
 const DAYS = 24 * HOURS;
@@ -29,11 +29,20 @@ const METRICS = [
   { key: 'soil_moisture', label: 'Soil Moisture', unit: '%', color: '#22C55E', digits: 0 },
 ];
 
+// ⬇️ *** 1. ADDED A NEW METRIC CONFIG FOR MOTION *** ⬇️
+const MOTION_METRIC = { 
+  key: 'motion_events', 
+  label: 'Motion Events', 
+  unit: ' events', 
+  color: '#7C3AED', // Purple color
+  digits: 0 
+};
+
+// (formatNumber and formatAxisLabel are unchanged)
 const formatNumber = (value, digits = 0) => {
   if (typeof value !== 'number' || Number.isNaN(value)) return '--';
   return value.toFixed(digits);
 };
-
 const formatAxisLabel = (timestamp, rangeKey) => {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return '--';
@@ -43,9 +52,9 @@ const formatAxisLabel = (timestamp, rangeKey) => {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
+
 // (MetricChart component is unchanged)
 const MetricChart = ({ data, metric, rangeKey, chartWidth }) => {
-  // ... (This component is unchanged from your file)
   const chartHeight = 164;
   const topPadding = 18;
   const bottomPadding = 28;
@@ -82,7 +91,11 @@ const MetricChart = ({ data, metric, rangeKey, chartWidth }) => {
       filteredEntries.length > 1
         ? (index / (filteredEntries.length - 1)) * chartWidth
         : chartWidth / 2;
-    const normalized = (value - min) / span;
+    // For motion, we want 0 to be at the bottom, even if min > 0
+    const valueMin = metric.key === 'motion_events' ? 0 : min; 
+    const valueSpan = metric.key === 'motion_events' ? Math.max(1, max) : span;
+    
+    const normalized = (value - valueMin) / valueSpan;
     const y =
       chartHeight -
       (normalized * (chartHeight - topPadding - bottomPadding) + bottomPadding);
@@ -210,25 +223,21 @@ export default function AdminIotAnalyticsScreen() {
 
   const device = route?.params?.device ?? {};
   
-  // ⬇️ *** 2. ADD STATE FOR LOADING, ERROR, AND REAL DATA *** ⬇️
   const [selectedRange, setSelectedRange] = useState('24H');
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // ⬇️ *** 3. ADD useEffect TO FETCH DATA *** ⬇️
   useEffect(() => {
     if (!device.device_id_raw) {
       setError('No device ID provided');
       setLoading(false);
       return;
     }
-
     const loadHistory = async () => {
       try {
         setLoading(true);
         setError(null);
-        // Fetch real data from the API
         const data = await fetchDeviceHistory(device.device_id_raw, selectedRange);
         setHistory(data);
       } catch (err) {
@@ -238,20 +247,70 @@ export default function AdminIotAnalyticsScreen() {
         setLoading(false);
       }
     };
-
     loadHistory();
-  }, [device.device_id_raw, selectedRange]); // Re-fetch when range or device changes
+  }, [device.device_id_raw, selectedRange]); 
 
-  // ⬇️ *** 4. SIMPLIFY MEMOS TO USE REAL DATA *** ⬇️
-  // (Note: 'rangeHistory' is just 'history' now)
+  // (Memos for KPIs are unchanged)
   const latestEntry = history.length > 0 ? history[history.length - 1] : null;
   const motionEvents = history.filter((entry) => entry.motion_detected).length;
-  // 'activeAlerts' now comes from the 'alerts' string (e.g., "motion, environment")
   const activeAlerts = device.alerts ? device.alerts.split(',').length : 0;
 
   const chartWidth = Math.min(width - 40, 540);
 
-  // ⬇️ *** 5. RENDER FUNCTION WITH LOADING STATE *** ⬇️
+  // ⬇️ *** 2. NEW: AGGREGATE MOTION DATA INTO BUCKETS *** ⬇️
+  const motionHistory = useMemo(() => {
+    if (history.length === 0) return [];
+
+    // 1. Define time buckets based on selected range
+    const now = new Date().getTime();
+    let numBuckets, bucketDurationMs;
+
+    switch (selectedRange) {
+      case '1H':
+        numBuckets = 6; // 6 buckets of 10 minutes
+        bucketDurationMs = 10 * 60 * 1000;
+        break;
+      case '7D':
+        numBuckets = 7; // 7 buckets of 1 day
+        bucketDurationMs = 1 * DAYS;
+        break;
+      case '24H':
+      default:
+        numBuckets = 6; // 6 buckets of 4 hours
+        bucketDurationMs = 4 * HOURS;
+        break;
+    }
+    
+    // Get the start time of the *entire range*
+    const rangeStartTime = now - (numBuckets * bucketDurationMs);
+
+    // 2. Initialize buckets
+    const buckets = Array.from({ length: numBuckets }, (_, i) => {
+      const bucketStartTime = rangeStartTime + (i * bucketDurationMs);
+      return {
+        timestamp: new Date(bucketStartTime).toISOString(),
+        motion_events: 0,
+      };
+    });
+
+    // 3. Slot motion events into buckets
+    history.forEach(entry => {
+      if (entry.motion_detected) {
+        const entryTime = new Date(entry.timestamp).getTime();
+        if (entryTime < rangeStartTime) return; // Skip data older than our chart
+        
+        // Find the correct bucket
+        const bucketIndex = Math.floor((entryTime - rangeStartTime) / bucketDurationMs);
+        if (buckets[bucketIndex]) {
+          buckets[bucketIndex].motion_events++;
+        }
+      }
+    });
+
+    return buckets;
+  }, [history, selectedRange]);
+
+
   const renderContent = () => {
     if (loading) {
       return (
@@ -261,7 +320,6 @@ export default function AdminIotAnalyticsScreen() {
         </View>
       );
     }
-    
     if (error) {
       return (
         <View style={styles.centered}>
@@ -269,10 +327,19 @@ export default function AdminIotAnalyticsScreen() {
         </View>
       );
     }
+    if (history.length === 0) {
+      return (
+        <View style={styles.centered}>
+          <Ionicons name="analytics-outline" size={32} color="#64748B" />
+          <Text style={styles.loadingText}>No historical data found for this period.</Text>
+        </View>
+      )
+    }
 
     return (
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.kpiRow}>
+          {/* (KPI Cards are unchanged) */}
           <View style={styles.kpiCard}>
             <Text style={styles.kpiLabel}>Last Reading</Text>
             <Text style={styles.kpiValue}>
@@ -296,21 +363,33 @@ export default function AdminIotAnalyticsScreen() {
           </View>
         </View>
 
+        {/* 3. RENDER THE ORIGINAL CHARTS... */}
         {METRICS.map((metric) => (
           <MetricChart
             key={metric.key}
-            data={history} // <-- Use real history data
+            data={history} // <-- Use raw history
             metric={metric}
             rangeKey={selectedRange}
             chartWidth={chartWidth}
           />
         ))}
+        
+        {/* 4. ...AND RENDER THE NEW MOTION CHART */}
+        <MetricChart
+          key="motion"
+          data={motionHistory} // <-- Use new aggregated data
+          metric={MOTION_METRIC} // <-- Use new motion config
+          rangeKey={selectedRange}
+          chartWidth={chartWidth}
+        />
+
       </ScrollView>
     );
   };
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* (Header is unchanged) */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -323,13 +402,13 @@ export default function AdminIotAnalyticsScreen() {
         </TouchableOpacity>
         <View>
           <Text style={styles.headerTitle}>Historical Analytics</Text>
-          {/* Use real device name from params */}
           <Text style={styles.headerSubtitle}>
             {device.device_name ?? device.device_id ?? 'Unknown Device'}
           </Text>
         </View>
       </View>
 
+      {/* (Range row is unchanged) */}
       <View style={styles.rangeRow}>
         {Object.entries(RANGE_PRESETS).map(([key, preset]) => {
           const isActive = key === selectedRange;
@@ -351,14 +430,13 @@ export default function AdminIotAnalyticsScreen() {
         })}
       </View>
       
-      {/* Render the content (loading, error, or charts) */}
       {renderContent()}
       
     </SafeAreaView>
   );
 }
 
-// ⬇️ *** 6. ADDED STYLES for loading/error states *** ⬇️
+// (Styles are unchanged, but I added a rule for the motion chart y-axis)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -424,11 +502,11 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   content: {
+    paddingTop: 20,
     paddingHorizontal: 20,
     paddingBottom: 40,
     gap: 20,
   },
-  // New styles for centered content
   centered: {
     flex: 1,
     justifyContent: 'center',

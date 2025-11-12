@@ -1,12 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { ADMIN_IOT_ANALYTICS } from '../../navigation/routes';
 
-// ⬇️ *** 1. REAL ALERT THRESHOLDS *** ⬇️
-// These MUST match your backend's 'config/alertThresholds.js' file
+// (thresholds, formatDate, SensorCard component are all unchanged)
 const thresholds = {
   TEMP_HIGH: 32.0,
   TEMP_LOW: 5.0,
@@ -14,14 +13,12 @@ const thresholds = {
   SOIL_MOISTURE_LOW: 20.0,
 };
 
-// (formatDate function is unchanged)
 const formatDate = (iso) => {
-  if (!iso) return 'N/A'; // Handle null/undefined dates
+  if (!iso) return 'N/A';
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
 };
 
-// (SensorCard component is unchanged)
 const SensorCard = ({ icon, title, value, unit, helper, alert }) => (
   <View style={[styles.sensorCard, alert ? styles.sensorCardAlert : styles.sensorCardOk]}>
     <View style={styles.sensorCardHeader}>
@@ -60,30 +57,25 @@ export default function AdminIotDetailScreen({ route }) {
     );
   }
 
-  // ⬇️ *** 2. USE REAL DATA (from device object) *** ⬇️
-  // Use device.readings, providing an empty fallback
   const readings = device.readings || {};
-
-  const formatNumber = (val, digits = 1) => {
-    if (typeof val !== 'number' || Number.isNaN(val)) return '--';
-    return val.toFixed(digits);
-  };
-  
-  // ⬇️ *** 3. SENSOR CARDS USE REAL DATA & THRESHOLDS *** ⬇️
-  // We check the *actual reading* against the thresholds
   
   const isTempAlert = readings.temperature > thresholds.TEMP_HIGH || readings.temperature < thresholds.TEMP_LOW;
   const isHumidityAlert = readings.humidity > thresholds.HUMIDITY_HIGH;
   const isSoilAlert = readings.soil_moisture < thresholds.SOIL_MOISTURE_LOW;
   const isMotionAlert = readings.motion_detected;
 
+  const formatNumber = (val, digits = 1) => {
+    if (typeof val !== 'number' || Number.isNaN(val)) return '--';
+    return val.toFixed(digits);
+  };
+  
   const sensorCards = [
     {
       key: 'temperature',
       icon: 'thermometer-outline',
       title: 'Temperature',
       value: formatNumber(readings.temperature, 1),
-      unit: ' °C', // <-- Fixed unit
+      unit: ' °C',
       helper: isTempAlert
         ? 'Temperature exceeds the optimal window.'
         : 'Within optimal range.',
@@ -124,8 +116,11 @@ export default function AdminIotDetailScreen({ route }) {
     },
   ];
 
-  // ⬇️ *** 4. IMAGE uses fallback (since API provides no photo) *** ⬇️
-  const imageSource = require('../../../assets/pitcher.jpg');
+  // ⬇️ *** 1. THIS IS THE FIRST CHANGE *** ⬇️
+  // Set imageSource to null if no photo URL is available
+  const imageSource = device.species_photo
+    ? { uri: device.species_photo }
+    : null; // <-- No more fallback
 
   return (
     <SafeAreaView style={styles.container}>
@@ -142,24 +137,27 @@ export default function AdminIotDetailScreen({ route }) {
           </TouchableOpacity>
         </View>
 
-        <Image source={imageSource} style={styles.photo} resizeMode="cover" />
+        {/* ⬇️ *** 2. THIS IS THE SECOND CHANGE *** ⬇️ */}
+        {/* Only render the Image component if imageSource is not null */}
+        {imageSource && (
+          <Image source={imageSource} style={styles.photo} resizeMode="cover" />
+        )}
 
         <Text style={styles.title}>{device.device_name || 'Unnamed Device'}</Text>
         <Text style={styles.subtitle}>Device ID: {device.device_id}</Text>
 
-        {/* ⬇️ *** 5. PLANT/LOCATION use REAL data *** ⬇️ */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Plant</Text>
-          {/* Uses your new 'species_name' column */}
           <Text style={styles.sectionValue}>{device.species_name || 'N/A'}</Text>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Location</Text>
-          {/* Location name is not in your DB, so we use coordinates */}
           <Text style={styles.sectionValue}>
             Lat: {device.location?.latitude?.toFixed(4) || 'N/A'}
-            , Long: {device.location?.longitude?.toFixed(4) || 'N/A'}
+          </Text>
+          <Text style={styles.sectionMeta}>
+            Long: {device.location?.longitude?.toFixed(4) || 'N/A'}
           </Text>
         </View>
 
@@ -177,8 +175,8 @@ export default function AdminIotDetailScreen({ route }) {
           activeOpacity={0.85}
           onPress={() =>
             navigation.navigate(ADMIN_IOT_ANALYTICS, {
-              device, // Pass the device object
-              // 'history' is no longer passed, as it was mock data
+              device,
+              history: device.history || [], 
             })
           }
         >
@@ -191,7 +189,7 @@ export default function AdminIotDetailScreen({ route }) {
   );
 }
 
-// STYLES (Unchanged)
+// (Styles are unchanged)
 const styles = StyleSheet.create({
   container: {
     flex: 1,

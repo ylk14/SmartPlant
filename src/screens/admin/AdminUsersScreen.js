@@ -66,7 +66,10 @@ export default function AdminUsersScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>User Directory</Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>User Directory</Text>
+        <Text style={styles.subtitle}>Search, manage access, and review roles.</Text>
+      </View>
       <View style={styles.searchBar}>
         <Ionicons name="search" size={16} color="#64748B" />
         <TextInput
@@ -126,12 +129,21 @@ const styles = StyleSheet.create({
     padding: 24,
     backgroundColor: '#F5F6F8',
   },
+  header: {
+    gap: 4,
+    marginTop: 4,
+    marginBottom: 16,
+  },
   title: {
     fontSize: 24,
     fontWeight: '700',
     color: '#1E2D3D',
   },
-    list: {
+  subtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  list: {
     marginTop: 24,
     gap: 16,
   },

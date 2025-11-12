@@ -59,16 +59,20 @@ export default function ObservationDetailScreen() {
         focusLocationName: locationName || null,
       };
 
-      const parent = nav.getParent();
+        const parent = nav.getParent();
 
-      if (parent?.navigate) {
-        parent.navigate(ROOT_TABS, {
-          screen: 'Heatmap',
-          params,
-        });
-      } else {
-        nav.navigate('Heatmap', params);
-      }
+        const navigateToHeatmap = navigator => {
+          if (!navigator?.navigate) return false;
+          navigator.navigate(ROOT_TABS, {
+            screen: 'Heatmap',
+            params,
+          });
+          return true;
+        };
+
+        if (!navigateToHeatmap(parent)) {
+          navigateToHeatmap(nav);
+        }
     }
   };
 
