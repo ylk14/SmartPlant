@@ -1,10 +1,10 @@
 // src/screens/PreviewScreen.js
 import React, { useState } from 'react';
-import { View, Image, StyleSheet, Text, TouchableOpacity, Alert } from 'react-native';
+import { View, Image, StyleSheet, Text, TouchableOpacity, Alert, ActivityIndicator, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import ScannerOverlay from '../screens/components/ScannerOverlay'; // ✅ correct path
-import { MOCK_IDENTIFY_RESULT } from '../data/mockPlants';
+import * as Location from 'expo-location';
+import ScannerOverlay from '../screens/components/ScannerOverlay'; 
 
 // const API_BASE = 'http://localhost:3000';
 const API_BASE = 'http://10.0.2.2:3000';
@@ -15,6 +15,8 @@ export default function PreviewScreen() {
   const route = useRoute();
   const { uri, source, exif } = route.params ?? {};
   const [loading, setLoading] = useState(false);
+  const [gpsCoords, setGpsCoords] = useState(null);
+  const [askedLocation, setAskedLocation] = useState(false);
 
   if (!uri) {
     return (
@@ -28,11 +30,67 @@ export default function PreviewScreen() {
   }
 
   const onDone = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
+      let lat = null;
+      let lon = null;
 
+      // Try to get device GPS if user allows
+      try {
+        if (!askedLocation) {
+          setAskedLocation(true);
+        }
+
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const loc = await Location.getCurrentPositionAsync({});
+          lat = loc.coords.latitude;
+          lon = loc.coords.longitude;
+          setGpsCoords({ latitude: lat, longitude: lon });
+        } else {
+          console.log('[location] permission denied, falling back');
+        }
+      } catch (err) {
+        console.log('[location] error getting coordinates', err);
+      }
+
+      // Fallback to EXIF GPS if device GPS is not available
+      if ((lat == null || lon == null) && exif?.GPSLatitude && exif?.GPSLongitude) {
+        const exifLat = Number(exif.GPSLatitude);
+        const exifLon = Number(exif.GPSLongitude);
+        if (Number.isFinite(exifLat) && Number.isFinite(exifLon)) {
+          lat = exifLat;
+          lon = exifLon;
+        }
+      }
+
+      console.log('[preview] final coords before sending:', lat, lon);
+
+      // Build form data
       const form = new FormData();
-      form.append('image', { uri, name: 'photo.jpg', type: 'image/jpeg' });
+      form.append('image', {
+        uri,
+        name: 'photo.jpg',
+        type: 'image/jpeg',
+      });
+
+      // send coordinates only if we actually have them
+      if (
+        lat != null &&
+        lon != null &&
+        Number.isFinite(lat) &&
+        Number.isFinite(lon)
+      ) {
+        form.append('location_latitude', String(lat));
+        form.append('location_longitude', String(lon));
+      }
+
+      if (exif?.DateTime) {
+        form.append('notes', `Captured: ${exif.DateTime}`);
+      }
+
+      // temp hardcoded user for testing
+      form.append('user_id', '1');
 
       const res = await fetch(`${API_BASE}/scan`, {
         method: 'POST',
@@ -40,34 +98,27 @@ export default function PreviewScreen() {
         body: form,
       });
 
-      if (!res.ok) throw new Error(`Identify failed: ${res.status}`);
       const data = await res.json();
 
-      // Match your backend's response structure
-      // (from your latest test result)
-      const result = {
-        plantName: data.primary.species_name,
-        confidence: data.primary.confidence * 100,
-        lowConfidence: data.primary.unsure,
-        photoUri: `${API_BASE}${data.primary.image_path}`,
-        uploadedBy: "You",
-        uploadDate: new Date(data.created_at).toLocaleString(),
-        region: "—",
-        locationName: "—",
-        conservationStatus: "Unknown",
-      };
+      if (!res.ok) {
+        throw new Error(data?.error || 'Prediction failed');
+      }
 
-      nav.replace("Result", result);
+      setLoading(false);
+
+      nav.navigate('Result', {
+        photo: { uri },
+        result: data,
+      });
     } catch (e) {
-      console.warn(e);
-      Alert.alert("Scan failed", "Could not analyze the photo. Please try again.");
-    } finally {
+      console.log('[scan] error', e);
+      Alert.alert('Scan failed', 'Could not analyze the photo. Please try again.');
       setLoading(false);
     }
   };
 
   return (
-    // ✅ SafeAreaView keeps header clear of the notch/camera
+    // SafeAreaView keeps header clear of the notch/camera
     <SafeAreaView style={s.container} edges={['top', 'left', 'right']}>
       {/* background image */}
       <Image source={{ uri }} style={s.img} resizeMode="contain" />
@@ -88,8 +139,15 @@ export default function PreviewScreen() {
 
         <View style={s.meta}>
           <Text style={s.metaTxt}>Source: {source || 'unknown'}</Text>
-          {exif?.GPSLatitude && exif?.GPSLongitude && (
-            <Text style={s.metaTxt}>EXIF GPS: {exif.GPSLatitude} , {exif.GPSLongitude}</Text>
+          {gpsCoords && (
+            <Text style={s.metaTxt}>
+              GPS: {gpsCoords.latitude.toFixed(5)}, {gpsCoords.longitude.toFixed(5)}
+            </Text>
+          )}
+          {!gpsCoords && exif?.GPSLatitude && exif?.GPSLongitude && (
+            <Text style={s.metaTxt}>
+              EXIF GPS: {exif.GPSLatitude} , {exif.GPSLongitude}
+            </Text>
           )}
         </View>
       </View>
