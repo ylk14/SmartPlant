@@ -99,7 +99,7 @@ export default function AdminAgentChatScreen() {
       {
         id: 'msg-001',
         sender: 'agent',
-        content: 'Hi Flora Admin! I can help triage alerts, summarize reports, or draft responses. Ask me about the current sensor status.',
+        content: 'Hi Flora Admin! I can help triage alerts or summarize reports. Ask me about the current sensor status.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       },
     ]);

@@ -1,6 +1,7 @@
 // src/components/Topbar.jsx
 import React from "react";
 import "./Topbar.css";
+import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 
 export default function Topbar({ onLogout }) {
   return (
@@ -11,7 +12,7 @@ export default function Topbar({ onLogout }) {
       
       <div className="topbar-right">
         <div className="topbar-user">
-          <span className="user-avatar">👤</span>
+          <span className="user-avatar"><AccountCircleIcon /></span>
           <span className="user-name">Administrator</span>
         </div>
         

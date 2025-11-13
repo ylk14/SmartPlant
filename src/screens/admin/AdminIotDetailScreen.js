@@ -5,89 +5,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { ADMIN_IOT_ANALYTICS } from '../../navigation/routes';
 
+// (thresholds, formatDate, SensorCard component are all unchanged)
+const thresholds = {
+  TEMP_HIGH: 32.0,
+  TEMP_LOW: 5.0,
+  HUMIDITY_HIGH: 85.0,
+  SOIL_MOISTURE_LOW: 20.0,
+};
+
 const formatDate = (iso) => {
+  if (!iso) return 'N/A';
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
-};
-
-const HOURS = 60 * 60 * 1000;
-const DAYS = 24 * HOURS;
-
-const generateMockHistory = () => {
-  const now = new Date();
-  const start = new Date(now.getTime() - 7 * DAYS);
-  const steps = 56; // 7 days @ 3 hour intervals
-
-  return Array.from({ length: steps + 1 }, (_, index) => {
-    const pointDate = new Date(start.getTime() + index * 3 * HOURS);
-    const phase = index / 3.4;
-    const tempBase = 25 + 3.5 * Math.sin(phase) + 0.6 * Math.cos(phase * 1.2);
-    const humidityBase = 68 + 12 * Math.sin(phase / 1.6 + 1) + 3 * Math.cos(phase / 2.8);
-    const soilBase = 52 + 7 * Math.cos(phase / 1.3 + 0.4) + 2 * Math.sin(phase / 4);
-    const motionDetected = ((index + 3) % 9 === 0) || ((index + 5) % 13 === 0);
-
-    return {
-      timestamp: pointDate.toISOString(),
-      temperature: Number(tempBase.toFixed(1)),
-      humidity: Math.max(40, Math.min(98, Math.round(humidityBase))),
-      soil_moisture: Math.max(32, Math.min(90, Math.round(soilBase))),
-      motion_detected: motionDetected,
-    };
-  });
-};
-
-const coerceMetricNumber = (value) => {
-  const numeric = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(numeric) ? numeric : null;
-};
-
-const normalizeHistoryEntry = (entry) => {
-  if (!entry) return null;
-
-  const timestamp =
-    entry.timestamp ??
-    entry.recorded_at ??
-    entry.created_at ??
-    entry.time ??
-    entry.datetime;
-
-  const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  const readings = entry.readings ?? entry.metrics ?? entry;
-
-  const temperature =
-    coerceMetricNumber(readings?.temperature ?? readings?.temp ?? entry.temperature);
-  const humidity =
-    coerceMetricNumber(readings?.humidity ?? readings?.relative_humidity ?? entry.humidity);
-  const soil =
-    coerceMetricNumber(
-      readings?.soil_moisture ??
-        readings?.soilMoisture ??
-        readings?.soil ??
-        entry.soil_moisture
-    );
-
-  if ([temperature, humidity, soil].some((val) => val === null)) {
-    return null;
-  }
-
-  const motionDetected =
-    typeof readings?.motion_detected === 'boolean'
-      ? readings.motion_detected
-      : typeof entry.motion_detected === 'boolean'
-        ? entry.motion_detected
-        : Boolean(readings?.motion ?? readings?.motionDetected);
-
-  return {
-    timestamp: date.toISOString(),
-    temperature,
-    humidity,
-    soil_moisture: soil,
-    motion_detected: motionDetected,
-  };
 };
 
 const SensorCard = ({ icon, title, value, unit, helper, alert }) => (
@@ -128,83 +57,70 @@ export default function AdminIotDetailScreen({ route }) {
     );
   }
 
-  const alerts = Array.isArray(device.alerts) ? device.alerts : [];
-
-  const historySeries = useMemo(() => {
-    const normalizedHistory = Array.isArray(device.history)
-      ? device.history.map(normalizeHistoryEntry).filter(Boolean)
-      : [];
-
-    const fallbackHistory = generateMockHistory();
-    const merged = [...fallbackHistory];
-
-    normalizedHistory.forEach((entry) => {
-      merged.push(entry);
-    });
-
-    const uniqueMap = new Map();
-    merged.forEach((entry) => {
-      uniqueMap.set(entry.timestamp, entry);
-    });
-
-    return Array.from(uniqueMap.values()).sort(
-      (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
-    );
-  }, [device]);
+  const readings = device.readings || {};
+  
+  const isTempAlert = readings.temperature > thresholds.TEMP_HIGH || readings.temperature < thresholds.TEMP_LOW;
+  const isHumidityAlert = readings.humidity > thresholds.HUMIDITY_HIGH;
+  const isSoilAlert = readings.soil_moisture < thresholds.SOIL_MOISTURE_LOW;
+  const isMotionAlert = readings.motion_detected;
 
   const formatNumber = (val, digits = 1) => {
     if (typeof val !== 'number' || Number.isNaN(val)) return '--';
     return val.toFixed(digits);
   };
-
+  
   const sensorCards = [
     {
       key: 'temperature',
       icon: 'thermometer-outline',
       title: 'Temperature',
-      value: formatNumber(device.readings.temperature, 1),
-      unit: '?C',
-      helper: alerts.includes('Temperature')
+      value: formatNumber(readings.temperature, 1),
+      unit: ' °C',
+      helper: isTempAlert
         ? 'Temperature exceeds the optimal window.'
         : 'Within optimal range.',
-      alert: alerts.includes('Temperature'),
+      alert: isTempAlert,
     },
     {
       key: 'humidity',
       icon: 'water-outline',
       title: 'Humidity',
-      value: formatNumber(device.readings.humidity, 0),
+      value: formatNumber(readings.humidity, 0),
       unit: '%',
-      helper: alerts.includes('Humidity')
+      helper: isHumidityAlert
         ? 'High humidity detected. Inspect shelter.'
         : 'Air moisture is stable.',
-      alert: alerts.includes('Humidity'),
+      alert: isHumidityAlert,
     },
     {
       key: 'soil_moisture',
       icon: 'leaf-outline',
       title: 'Soil Moisture',
-      value: formatNumber(device.readings.soil_moisture, 0),
+      value: formatNumber(readings.soil_moisture, 0),
       unit: '%',
-      helper: alerts.includes('Soil Moisture')
+      helper: isSoilAlert
         ? 'Soil moisture outside safe band.'
         : 'Root zone moisture is healthy.',
-      alert: alerts.includes('Soil Moisture'),
+      alert: isSoilAlert,
     },
     {
       key: 'motion_detected',
       icon: 'walk-outline',
       title: 'Motion',
-      value: device.readings.motion_detected ? 'Detected' : 'None',
+      value: readings.motion_detected ? 'Detected' : 'None',
       unit: '',
-      helper: alerts.includes('Motion')
+      helper: isMotionAlert
         ? 'Unexpected movement near this device.'
         : 'No unusual activity reported.',
-      alert: alerts.includes('Motion'),
+      alert: isMotionAlert,
     },
   ];
 
-  const imageSource = device.photo ? device.photo : require('../../../assets/pitcher.jpg');
+  // ⬇️ *** 1. THIS IS THE FIRST CHANGE *** ⬇️
+  // Set imageSource to null if no photo URL is available
+  const imageSource = device.species_photo
+    ? { uri: device.species_photo }
+    : null; // <-- No more fallback
 
   return (
     <SafeAreaView style={styles.container}>
@@ -221,45 +137,51 @@ export default function AdminIotDetailScreen({ route }) {
           </TouchableOpacity>
         </View>
 
-        <Image source={imageSource} style={styles.photo} resizeMode="cover" />
+        {/* ⬇️ *** 2. THIS IS THE SECOND CHANGE *** ⬇️ */}
+        {/* Only render the Image component if imageSource is not null */}
+        {imageSource && (
+          <Image source={imageSource} style={styles.photo} resizeMode="cover" />
+        )}
 
-        <Text style={styles.title}>{device.device_name}</Text>
+        <Text style={styles.title}>{device.device_name || 'Unnamed Device'}</Text>
         <Text style={styles.subtitle}>Device ID: {device.device_id}</Text>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Plant</Text>
-          <Text style={styles.sectionValue}>{device.species}</Text>
+          <Text style={styles.sectionValue}>{device.species_name || 'N/A'}</Text>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Location</Text>
-          <Text style={styles.sectionValue}>{device.location.name}</Text>
+          <Text style={styles.sectionValue}>
+            Lat: {device.location?.latitude?.toFixed(4) || 'N/A'}
+          </Text>
           <Text style={styles.sectionMeta}>
-            {device.location.latitude.toFixed(4)}, {device.location.longitude.toFixed(4)}
+            Long: {device.location?.longitude?.toFixed(4) || 'N/A'}
           </Text>
         </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Sensor Readings</Text>
-            <View style={styles.sensorGrid}>
-              {sensorCards.map(({ key: sensorKey, ...cardProps }) => (
-                <SensorCard key={sensorKey} {...cardProps} />
-              ))}
-            </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Sensor Readings</Text>
+          <View style={styles.sensorGrid}>
+            {sensorCards.map(({ key: sensorKey, ...cardProps }) => (
+              <SensorCard key={sensorKey} {...cardProps} />
+            ))}
           </View>
+        </View>
 
-          <TouchableOpacity
-            style={styles.historyButton}
-            activeOpacity={0.85}
-            onPress={() =>
-              navigation.navigate(ADMIN_IOT_ANALYTICS, {
-                device,
-                history: historySeries,
-              })
-            }
-          >
-            <Text style={styles.historyButtonText}>View Historical Data</Text>
-          </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.historyButton}
+          activeOpacity={0.85}
+          onPress={() =>
+            navigation.navigate(ADMIN_IOT_ANALYTICS, {
+              device,
+              history: device.history || [], 
+            })
+          }
+        >
+          <Text style={styles.historyButtonText}>View Historical Data</Text>
+        </TouchableOpacity>
 
         <Text style={styles.updatedText}>Last updated {formatDate(device.last_updated)}</Text>
       </ScrollView>
@@ -267,6 +189,7 @@ export default function AdminIotDetailScreen({ route }) {
   );
 }
 
+// (Styles are unchanged)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -285,7 +208,7 @@ const styles = StyleSheet.create({
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'flex-start',
-      marginBottom: 12,
+      marginBottom: 0,
     },
     backButton: {
       flexDirection: 'row',

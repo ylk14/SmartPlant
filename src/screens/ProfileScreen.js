@@ -1,9 +1,9 @@
 // src/screens/ProfileScreen.js
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, Image, StyleSheet, FlatList, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
 // ⬇️ NEW: import mock data from a single place
 import { MOCK_POSTS, mockUser } from '../data/mockPlants';
@@ -29,109 +29,105 @@ export default function ProfileScreen() {
 
   const [plants] = useState(MOCK_POSTS);
   const hasPosts = plants.length > 0;
+  const [user, setUser] = useState(() => ({ ...mockUser }));
 
-  const headerHeight = useMemo(() => 174, []);
+  useFocusEffect(
+    useCallback(() => {
+      setUser({ ...mockUser });
+    }, [])
+  );
 
   const renderItem = ({ item }) => {
-    // Accept either remote URL (string) or local require()
     const imgSource =
       typeof item.photoUri === 'string' ? { uri: item.photoUri } : item.photoUri;
 
-    const isEndangered = !!item.isEndangered;
-    const conf = typeof item.confidence === 'number' ? item.confidence : undefined;
+    const openObservation = () =>
+      nav.navigate('ObservationDetail', {
+        id: item.id,
+        speciesName: item.speciesName,
+        scientificName: item.scientificName,
+        commonName: item.commonName,
+        isEndangered: item.isEndangered,
+        photoUri: item.photoUri,
+        createdAt: item.createdAt,
+        confidence: item.confidence,
+        region: item.region,
+        locationName: item.locationName,
+        latitude: item.latitude,
+        longitude: item.longitude,
+        notes: item.notes,
+        uploadedBy: item.uploadedBy,
+        source: item.source,
+      });
 
-    // Confidence color band (non-intrusive)
-    let confColor = '#9CA3AF';
-    if (typeof conf === 'number') {
-      if (conf >= 70) confColor = '#16A34A';       // green
-      else if (conf >= 40) confColor = '#D97706';  // amber
-      else confColor = '#DC2626';                  // red
-    }
+    const initials = (item.uploadedBy || user.username || '?')
+      .slice(0, 2)
+      .toUpperCase();
 
     return (
-      <Pressable
-        onPress={() =>
-          nav.navigate('ObservationDetail', {
-            id: item.id,
-            speciesName: item.speciesName,
-            scientificName: item.scientificName,
-            commonName: item.commonName,
-            isEndangered: item.isEndangered,
-            photoUri: item.photoUri,
-            createdAt: item.createdAt,
-            confidence: item.confidence,
-            region: item.region,
-            locationName: item.locationName,
-            latitude: item.latitude,
-            longitude: item.longitude,
-            notes: item.notes,
-            uploadedBy: item.uploadedBy,
-            source: item.source,
-          })
-        }
-        style={s.card}
-        android_ripple={{ color: '#00000014' }}
-      >
-        {/* image */}
-        <View style={s.cardImageWrap}>
-          <Image source={imgSource} style={s.cardImage} />
-        </View>
+      <View style={s.post}>
+        <Pressable
+          style={s.imageWrap}
+          onPress={openObservation}
+          android_ripple={{ color: '#00000018' }}
+        >
+          <Image source={imgSource} style={s.postImage} resizeMode="cover" />
+        </Pressable>
 
-        {/* body */}
-        <View style={s.cardBody}>
-          <Text numberOfLines={1} style={s.cardTitle}>
-            {item.speciesName || item.commonName || 'Unknown species'}
-          </Text>
-          <Text style={s.cardMeta}>{fmt(item.createdAt)}</Text>
-
-          {/* chips row (optional info) */}
-          <View style={s.chipsRow}>
-            {typeof conf === 'number' && (
-              <View style={[s.chip, { backgroundColor: '#F1F5F9' }]}>
-                <View style={[s.dot, { backgroundColor: confColor }]} />
-                <Text style={s.chipText}>
-                  {conf}% Confidence
-                </Text>
-              </View>
-            )}
-            {isEndangered && (
-              <View style={[s.chip, { backgroundColor: '#FEE2E2' }]}>
-                <View style={[s.dot, { backgroundColor: '#DC2626' }]} />
-                <Text style={[s.chipText, { color: '#7F1D1D' }]}>Endangered</Text>
-              </View>
-            )}
-            {!!item.locationName && (
-              <View style={[s.chip, { backgroundColor: '#E2F3E9' }]}>
-                <View style={[s.dot, { backgroundColor: '#22C55E' }]} />
-                <Text style={[s.chipText, { color: '#155E3B' }]} numberOfLines={1}>
-                  {item.locationName}
-                </Text>
-              </View>
-            )}
+        <View style={s.postBody}>
+          <View style={s.postBadgeRow}>
+            <View style={s.userBadge}>
+              <Text style={s.userBadgeText}>{initials}</Text>
+            </View>
+            <Text style={s.username}>{item.uploadedBy || user.username}</Text>
           </View>
+          <View style={s.postBodyHeader}>
+            <Text numberOfLines={2} style={s.postTitle}>
+              {item.speciesName || item.commonName || 'Unknown species'}
+            </Text>
+            <Pressable
+              style={s.viewButton}
+              onPress={openObservation}
+              android_ripple={{ color: '#00000010', borderless: false }}
+            >
+              <Text style={s.viewButtonText}>View</Text>
+            </Pressable>
+          </View>
+          <Text style={s.postMeta}>
+            {item.locationName ? item.locationName : 'Location not recorded'}
+          </Text>
+          <Text style={s.postTimestamp}>{fmt(item.createdAt)}</Text>
         </View>
-      </Pressable>
+      </View>
     );
   };
 
   return (
     <SafeAreaView style={s.container} edges={['top', 'left', 'right']}>
-      {/* Curved header */}
-      <View style={[s.headerWrap, { paddingTop: insets.top + 8 }]}>
-        <View style={s.headerBg} />
-          <View style={[s.headerContent, { height: headerHeight }]}>
-            <View style={s.headerTopRow}>
-              <Image source={{ uri: mockUser.avatar }} style={s.avatar} />
-              <Pressable
-                style={s.settingsButton}
-                onPress={() => nav.navigate('Settings')}
-                accessibilityRole="button"
-              >
-                <Ionicons name="settings-outline" size={22} color="#1F2A37" />
-              </Pressable>
+      {/* Header */}
+      <View style={[s.header, { paddingTop: insets.top + 12 }]}>
+        <View style={s.headerRow}>
+          <View style={s.profileInfo}>
+            <Image source={{ uri: user.avatar }} style={s.avatar} />
+            <View>
+              <Text style={s.name}>{user.username}</Text>
+              <Text style={s.uid}>UID: {user.uid}</Text>
             </View>
-          <Text style={s.name}>{mockUser.username}</Text>
-          <Text style={s.uid}>UID: {mockUser.uid}</Text>
+          </View>
+          <Pressable
+            style={s.settingsButton}
+            onPress={() => nav.navigate('Settings')}
+            accessibilityRole="button"
+          >
+            <Ionicons name="settings-outline" size={22} color="#1F2A37" />
+          </Pressable>
+        </View>
+
+        <View style={s.statsContainer}>
+          <View style={s.statBlock}>
+            <Text style={s.statLabel}>Plants</Text>
+            <Text style={s.statValue}>{plants.length}</Text>
+          </View>
         </View>
       </View>
 
@@ -148,7 +144,9 @@ export default function ProfileScreen() {
       ) : (
         <View style={s.emptyWrap}>
           <Text style={s.emptyText}>No plants yet</Text>
-          <Text style={s.emptySub}>Capture or upload a plant to see it here.</Text>
+          <Text style={s.emptySub}>
+            Capture or upload a plant to see it here.
+          </Text>
         </View>
       )}
     </SafeAreaView>
@@ -158,23 +156,20 @@ export default function ProfileScreen() {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F6F9F4' },
 
-  headerWrap: { backgroundColor: 'transparent' },
-  headerBg: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0,
-    height: 150,
-    backgroundColor: '#93C3A0',
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
+  header: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    backgroundColor: '#F6F9F4',
   },
-  headerContent: { alignItems: 'center', justifyContent: 'center' },
-  headerTopRow: {
-    width: '100%',
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 32,
-    marginBottom: 10,
+  },
+  profileInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
   },
   avatar: {
     width: 86, height: 86, borderRadius: 43,
@@ -186,58 +181,85 @@ const s = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: '#E5ECF3',
   },
-  name: { fontSize: 18, fontWeight: '800', color: '#244332' },
+  name: { fontSize: 20, fontWeight: 'bold', color: '#244332' },
   uid: { color: '#2E6A4C', marginTop: 2, opacity: 0.9 },
 
+  statsContainer: {
+    marginTop: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#DCE9DE',
+    backgroundColor: '#ffffff',
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+  },
+  statBlock: {
+    alignItems: 'center',
+  },
+  statLabel: { fontSize: 12, fontWeight: '600', color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.6 },
+  statValue: { fontSize: 24, fontWeight: '800', color: '#244332', marginTop: 6 },
+
   sectionTitle: {
-    marginTop: 10, paddingHorizontal: 16,
-    fontSize: 16, fontWeight: '800', color: '#335a44',
+    marginTop: 18,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#335a44',
   },
 
-  listContent: { paddingHorizontal: 16, paddingBottom: 28 },
+  listContent: { paddingHorizontal: 0, paddingBottom: 48, paddingTop: 12 },
 
-  card: {
-    marginTop: 12,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    overflow: 'hidden',
-    elevation: 2,
-    // iOS shadow
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-  },
-  cardImageWrap: {
+  post: {
     width: '100%',
-    height: 180,
-    backgroundColor: '#E8F0EA',
+    marginBottom: 32,
+    backgroundColor: '#FFFFFF',
   },
-  cardImage: {
+  imageWrap: {
+    backgroundColor: '#CBD5F5',
+  },
+  postImage: {
     width: '100%',
-    height: '100%',
+    aspectRatio: 1,
   },
-  cardBody: { paddingHorizontal: 14, paddingVertical: 12 },
-  cardTitle: { fontSize: 16, fontWeight: '800', color: '#233127' },
-  cardMeta: { marginTop: 4, color: '#6B7280' },
-
-  chipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 10,
+  postBody: {
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 18,
+    gap: 10,
+    backgroundColor: '#FFFFFF',
   },
-  chip: {
+  postBadgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    gap: 10,
+  },
+  userBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#D8E9DF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userBadgeText: { fontSize: 15, fontWeight: '700', color: '#24543B' },
+  username: { fontSize: 15, fontWeight: '700', color: '#1F2A37' },
+  postBodyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  postTitle: { flex: 1, fontSize: 17, fontWeight: '800', color: '#0F172A' },
+  viewButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 999,
+    backgroundColor: '#2F6C4F',
   },
-  chipText: { fontSize: 12.5, color: '#1F2937', fontWeight: '700' },
-  dot: {
-    width: 6, height: 6, borderRadius: 3, marginRight: 6,
-  },
+  viewButtonText: { color: '#FFFFFF', fontWeight: '700', fontSize: 13 },
+  postMeta: { fontSize: 13.5, fontWeight: '600', color: '#334155' },
+  postTimestamp: { fontSize: 12.5, fontWeight: '600', color: '#64748B' },
 
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyText: { fontSize: 18, fontWeight: '800', color: '#2b2b2b' },

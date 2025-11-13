@@ -13,19 +13,19 @@ import MapView, { Marker, Heatmap } from "react-native-maps";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 
 // ===================== MOCK DATA =====================
 const mockObservations = [
   {
     observation_id: 1,
     user: { username: "Ali" },
-    species: {
-      common_name: "Borneo Pitcher Plant",
-      scientific_name: "Nepenthes rajah",
-      is_endangered: 1,
-      image_url: require("../../assets/PlantPin.png"), // 🔹 Local image
-    },
+      species: {
+        common_name: "Borneo Pitcher Plant",
+        scientific_name: "Nepenthes rajah",
+        is_endangered: true,
+        image_url: require("../../assets/PlantPin.png"), // 🔹 Local image
+      },
     photo_url: require("../../assets/pitcher.jpg"), // 🔹 Local image for observation
     location_latitude: 1.5536,
     location_longitude: 110.3593,
@@ -39,7 +39,7 @@ const mockObservations = [
     species: {
       common_name: "Rafflesia",
       scientific_name: "Rafflesia arnoldii",
-      is_endangered: 1,
+        is_endangered: true,
       image_url: require("../../assets/PlantPin.png"), //image: generic reference image of a species
     },
     photo_url: require("../../assets/rafflesia.jpg"),  //photo:actual photo uploaded by user for a specific sighting
@@ -55,7 +55,7 @@ const mockObservations = [
     species: {
       common_name: "Wild Orchid",
       scientific_name: "Dendrobium anosmum",
-      is_endangered: 0,
+        is_endangered: false,
       image_url: require("../../assets/PlantPin.png"), 
     },
     photo_url: require("../../assets/orchid.jpg"), 
@@ -69,6 +69,7 @@ const mockObservations = [
 
 export default function HeatmapScreen() {
   const navigation = useNavigation();
+  const route = useRoute();
   const mapRef = useRef(null);
 
   const [observations, setObservations] = useState(mockObservations); //need to replace this when connect to backend and database
@@ -115,6 +116,28 @@ export default function HeatmapScreen() {
       }
     }
   }, [selectedSpecies]);
+
+  useEffect(() => {
+    const focusLat = route.params?.focusLatitude;
+    const focusLon = route.params?.focusLongitude;
+    if (
+      typeof focusLat === "number" &&
+      typeof focusLon === "number" &&
+      mapRef.current
+    ) {
+      setMode("pins");
+      mapRef.current.animateToRegion(
+        {
+          latitude: focusLat,
+          longitude: focusLon,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        },
+        800
+      );
+      navigation.setParams?.({});
+    }
+  }, [route.params?.focusLatitude, route.params?.focusLongitude]);
 
   const HEATMAP_RADIUS = Platform.OS === "android" ? 40 : 60;
 

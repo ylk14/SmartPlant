@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   View,
@@ -7,10 +7,12 @@ import {
   TouchableOpacity,
   ScrollView,
   useWindowDimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Line, Circle, Polyline } from 'react-native-svg';
+import { fetchDeviceHistory } from '../../../services/api';
 
 const HOURS = 60 * 60 * 1000;
 const DAYS = 24 * HOURS;
@@ -27,110 +29,20 @@ const METRICS = [
   { key: 'soil_moisture', label: 'Soil Moisture', unit: '%', color: '#22C55E', digits: 0 },
 ];
 
-const generateMockHistory = () => {
-  const now = new Date();
-  const start = new Date(now.getTime() - 7 * DAYS);
-  const points = 56; // 7 days @ 3-hour interval
-
-  return Array.from({ length: points + 1 }, (_, index) => {
-    const pointDate = new Date(start.getTime() + index * 3 * HOURS);
-    const phase = index / 3.6;
-    const temperature = 24.5 + 3.8 * Math.sin(phase) + 0.7 * Math.cos(phase * 1.2);
-    const humidity = 65 + 15 * Math.sin(phase / 1.8 + 0.9) + 4 * Math.cos(phase / 3.1);
-    const soil = 50 + 9 * Math.cos(phase / 1.4 + 0.6) + 2.2 * Math.sin(phase / 5.2);
-    const motionDetected = ((index + 2) % 10 === 0) || ((index + 4) % 14 === 0);
-
-    return {
-      timestamp: pointDate.toISOString(),
-      temperature: Number(temperature.toFixed(1)),
-      humidity: Math.round(Math.max(38, Math.min(97, humidity))),
-      soil_moisture: Math.round(Math.max(30, Math.min(88, soil))),
-      motion_detected: motionDetected,
-    };
-  });
+// ⬇️ *** 1. ADDED A NEW METRIC CONFIG FOR MOTION *** ⬇️
+const MOTION_METRIC = { 
+  key: 'motion_events', 
+  label: 'Motion Events', 
+  unit: ' events', 
+  color: '#7C3AED', // Purple color
+  digits: 0 
 };
 
-const coerceMetricNumber = (value) => {
-  const numeric = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(numeric) ? numeric : null;
-};
-
-const normalizeHistoryEntry = (entry) => {
-  if (!entry) return null;
-
-  const timestamp =
-    entry.timestamp ??
-    entry.recorded_at ??
-    entry.created_at ??
-    entry.time ??
-    entry.datetime;
-
-  const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  const metrics = entry.readings ?? entry.metrics ?? entry;
-
-  const temperature =
-    coerceMetricNumber(metrics?.temperature ?? metrics?.temp ?? entry.temperature);
-  const humidity =
-    coerceMetricNumber(metrics?.humidity ?? metrics?.relative_humidity ?? entry.humidity);
-  const soil =
-    coerceMetricNumber(
-      metrics?.soil_moisture ??
-        metrics?.soilMoisture ??
-        metrics?.soil ??
-        entry.soil_moisture
-    );
-
-  if ([temperature, humidity, soil].some((val) => val === null)) {
-    return null;
-  }
-
-  const motionDetected =
-    typeof metrics?.motion_detected === 'boolean'
-      ? metrics.motion_detected
-      : typeof entry.motion_detected === 'boolean'
-        ? entry.motion_detected
-        : Boolean(metrics?.motion ?? metrics?.motionDetected);
-
-  return {
-    timestamp: date.toISOString(),
-    temperature,
-    humidity,
-    soil_moisture: soil,
-    motion_detected: motionDetected,
-  };
-};
-
-const combineHistory = (incomingHistory) => {
-  const normalizedIncoming = Array.isArray(incomingHistory)
-    ? incomingHistory.map(normalizeHistoryEntry).filter(Boolean)
-    : [];
-
-  const fallback = generateMockHistory();
-  const merged = [...fallback];
-
-  normalizedIncoming.forEach((entry) => {
-    merged.push(entry);
-  });
-
-  const unique = new Map();
-  merged.forEach((entry) => {
-    unique.set(entry.timestamp, entry);
-  });
-
-  return Array.from(unique.values()).sort(
-    (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
-  );
-};
-
+// (formatNumber and formatAxisLabel are unchanged)
 const formatNumber = (value, digits = 0) => {
   if (typeof value !== 'number' || Number.isNaN(value)) return '--';
   return value.toFixed(digits);
 };
-
 const formatAxisLabel = (timestamp, rangeKey) => {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return '--';
@@ -140,6 +52,8 @@ const formatAxisLabel = (timestamp, rangeKey) => {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
+
+// (MetricChart component is unchanged)
 const MetricChart = ({ data, metric, rangeKey, chartWidth }) => {
   const chartHeight = 164;
   const topPadding = 18;
@@ -177,7 +91,11 @@ const MetricChart = ({ data, metric, rangeKey, chartWidth }) => {
       filteredEntries.length > 1
         ? (index / (filteredEntries.length - 1)) * chartWidth
         : chartWidth / 2;
-    const normalized = (value - min) / span;
+    // For motion, we want 0 to be at the bottom, even if min > 0
+    const valueMin = metric.key === 'motion_events' ? 0 : min; 
+    const valueSpan = metric.key === 'motion_events' ? Math.max(1, max) : span;
+    
+    const normalized = (value - valueMin) / valueSpan;
     const y =
       chartHeight -
       (normalized * (chartHeight - topPadding - bottomPadding) + bottomPadding);
@@ -297,88 +215,131 @@ const MetricChart = ({ data, metric, rangeKey, chartWidth }) => {
   );
 };
 
+
 export default function AdminIotAnalyticsScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const { width } = useWindowDimensions();
 
   const device = route?.params?.device ?? {};
-  const incomingHistory = route?.params?.history ?? [];
-
-  const combinedHistory = useMemo(
-    () => combineHistory(incomingHistory),
-    [incomingHistory]
-  );
-
+  
   const [selectedRange, setSelectedRange] = useState('24H');
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const rangeHistory = useMemo(() => {
-    if (combinedHistory.length === 0) {
-      return [];
+  useEffect(() => {
+    if (!device.device_id_raw) {
+      setError('No device ID provided');
+      setLoading(false);
+      return;
     }
-    const latestTimestamp = new Date(
-      combinedHistory[combinedHistory.length - 1].timestamp
-    ).getTime();
-    const windowMs = RANGE_PRESETS[selectedRange].windowMs;
-    const threshold = latestTimestamp - windowMs;
-    const filtered = combinedHistory.filter(
-      (entry) => new Date(entry.timestamp).getTime() >= threshold
-    );
-    if (filtered.length >= 6) {
-      return filtered;
-    }
-    return combinedHistory.slice(-Math.min(combinedHistory.length, 12));
-  }, [combinedHistory, selectedRange]);
+    const loadHistory = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await fetchDeviceHistory(device.device_id_raw, selectedRange);
+        setHistory(data);
+      } catch (err) {
+        console.error('Failed to load history:', err);
+        setError('Could not load device history.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadHistory();
+  }, [device.device_id_raw, selectedRange]); 
 
-  const latestEntry = rangeHistory[rangeHistory.length - 1];
-  const motionEvents = rangeHistory.filter((entry) => entry.motion_detected).length;
-  const activeAlerts = Array.isArray(device.alerts) ? device.alerts.length : 0;
+  // (Memos for KPIs are unchanged)
+  const latestEntry = history.length > 0 ? history[history.length - 1] : null;
+  const motionEvents = history.filter((entry) => entry.motion_detected).length;
+  const activeAlerts = device.alerts ? device.alerts.split(',').length : 0;
 
   const chartWidth = Math.min(width - 40, 540);
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-          activeOpacity={0.7}
-          accessibilityLabel="Go back"
-        >
-          <Ionicons name="arrow-back" size={20} color="#0F172A" />
-          <Text style={styles.backButtonText}>Back</Text>
-        </TouchableOpacity>
-        <View>
-          <Text style={styles.headerTitle}>Historical Analytics</Text>
-          <Text style={styles.headerSubtitle}>
-            {device.device_name ?? device.device_id ?? 'Unknown Device'}
-          </Text>
+  // ⬇️ *** 2. NEW: AGGREGATE MOTION DATA INTO BUCKETS *** ⬇️
+  const motionHistory = useMemo(() => {
+    if (history.length === 0) return [];
+
+    // 1. Define time buckets based on selected range
+    const now = new Date().getTime();
+    let numBuckets, bucketDurationMs;
+
+    switch (selectedRange) {
+      case '1H':
+        numBuckets = 6; // 6 buckets of 10 minutes
+        bucketDurationMs = 10 * 60 * 1000;
+        break;
+      case '7D':
+        numBuckets = 7; // 7 buckets of 1 day
+        bucketDurationMs = 1 * DAYS;
+        break;
+      case '24H':
+      default:
+        numBuckets = 6; // 6 buckets of 4 hours
+        bucketDurationMs = 4 * HOURS;
+        break;
+    }
+    
+    // Get the start time of the *entire range*
+    const rangeStartTime = now - (numBuckets * bucketDurationMs);
+
+    // 2. Initialize buckets
+    const buckets = Array.from({ length: numBuckets }, (_, i) => {
+      const bucketStartTime = rangeStartTime + (i * bucketDurationMs);
+      return {
+        timestamp: new Date(bucketStartTime).toISOString(),
+        motion_events: 0,
+      };
+    });
+
+    // 3. Slot motion events into buckets
+    history.forEach(entry => {
+      if (entry.motion_detected) {
+        const entryTime = new Date(entry.timestamp).getTime();
+        if (entryTime < rangeStartTime) return; // Skip data older than our chart
+        
+        // Find the correct bucket
+        const bucketIndex = Math.floor((entryTime - rangeStartTime) / bucketDurationMs);
+        if (buckets[bucketIndex]) {
+          buckets[bucketIndex].motion_events++;
+        }
+      }
+    });
+
+    return buckets;
+  }, [history, selectedRange]);
+
+
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color="#2563EB" />
+          <Text style={styles.loadingText}>Loading history...</Text>
         </View>
-      </View>
+      );
+    }
+    if (error) {
+      return (
+        <View style={styles.centered}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      );
+    }
+    if (history.length === 0) {
+      return (
+        <View style={styles.centered}>
+          <Ionicons name="analytics-outline" size={32} color="#64748B" />
+          <Text style={styles.loadingText}>No historical data found for this period.</Text>
+        </View>
+      )
+    }
 
-      <View style={styles.rangeRow}>
-        {Object.entries(RANGE_PRESETS).map(([key, preset]) => {
-          const isActive = key === selectedRange;
-          return (
-            <TouchableOpacity
-              key={key}
-              onPress={() => setSelectedRange(key)}
-              style={[styles.rangeChip, isActive && styles.rangeChipActive]}
-              activeOpacity={0.8}
-              accessibilityLabel={`Show data for ${preset.label}`}
-            >
-              <Text
-                style={[styles.rangeChipText, isActive && styles.rangeChipTextActive]}
-              >
-                {preset.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
+    return (
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.kpiRow}>
+          {/* (KPI Cards are unchanged) */}
           <View style={styles.kpiCard}>
             <Text style={styles.kpiLabel}>Last Reading</Text>
             <Text style={styles.kpiValue}>
@@ -402,21 +363,80 @@ export default function AdminIotAnalyticsScreen() {
           </View>
         </View>
 
+        {/* 3. RENDER THE ORIGINAL CHARTS... */}
         {METRICS.map((metric) => (
           <MetricChart
             key={metric.key}
-            data={rangeHistory}
+            data={history} // <-- Use raw history
             metric={metric}
             rangeKey={selectedRange}
             chartWidth={chartWidth}
           />
         ))}
+        
+        {/* 4. ...AND RENDER THE NEW MOTION CHART */}
+        <MetricChart
+          key="motion"
+          data={motionHistory} // <-- Use new aggregated data
+          metric={MOTION_METRIC} // <-- Use new motion config
+          rangeKey={selectedRange}
+          chartWidth={chartWidth}
+        />
 
       </ScrollView>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      {/* (Header is unchanged) */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+          activeOpacity={0.7}
+          accessibilityLabel="Go back"
+        >
+          <Ionicons name="arrow-back" size={20} color="#0F172A" />
+          <Text style={styles.backButtonText}>Back</Text>
+        </TouchableOpacity>
+        <View>
+          <Text style={styles.headerTitle}>Historical Analytics</Text>
+          <Text style={styles.headerSubtitle}>
+            {device.device_name ?? device.device_id ?? 'Unknown Device'}
+          </Text>
+        </View>
+      </View>
+
+      {/* (Range row is unchanged) */}
+      <View style={styles.rangeRow}>
+        {Object.entries(RANGE_PRESETS).map(([key, preset]) => {
+          const isActive = key === selectedRange;
+          return (
+            <TouchableOpacity
+              key={key}
+              onPress={() => setSelectedRange(key)}
+              style={[styles.rangeChip, isActive && styles.rangeChipActive]}
+              activeOpacity={0.8}
+              accessibilityLabel={`Show data for ${preset.label}`}
+            >
+              <Text
+                style={[styles.rangeChipText, isActive && styles.rangeChipTextActive]}
+              >
+                {preset.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      
+      {renderContent()}
+      
     </SafeAreaView>
   );
 }
 
+// (Styles are unchanged, but I added a rule for the motion chart y-axis)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -430,6 +450,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 16,
     backgroundColor: '#F5F6FA',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
   backButton: {
     flexDirection: 'row',
@@ -458,7 +480,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 20,
-    paddingBottom: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
   rangeChip: {
     borderRadius: 999,
@@ -478,9 +502,26 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   content: {
+    paddingTop: 20,
     paddingHorizontal: 20,
     paddingBottom: 40,
     gap: 20,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#475467',
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#B91C1C',
+    textAlign: 'center',
+    paddingHorizontal: 20,
   },
   kpiRow: {
     flexDirection: 'row',

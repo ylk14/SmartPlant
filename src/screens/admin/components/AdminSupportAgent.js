@@ -66,7 +66,7 @@ export default function AdminSupportAgent() {
               <Text style={styles.cardTitle}>SmartPlant Agent</Text>
             </View>
             <Text style={styles.cardSubtitle}>
-              Ask for help, triage alerts, or summarize field reports instantly.
+              Ask for help, triage alerts, or summarize field readings instantly.
             </Text>
             <TouchableOpacity
               activeOpacity={0.85}

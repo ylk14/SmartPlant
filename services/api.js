@@ -47,6 +47,56 @@ export const loginUser = async (email, password) => {
 };
 
 // SIGN UP FUNCTION
+
+//handle MFA
+export const verifyMFA = async (userId, code) => {
+  // This would call your actual backend
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({ success: true });
+    }, 1000);
+  });
+};
+
+export const resendMFACode = async (userId) => {
+  // This would call your actual backend
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({ success: true });
+    }, 1000);
+  });
+};
+
+//remove mock and use this real one
+//export const loginUser = async (email, password) => {
+  //try {
+    //const response = await fetch(`${API_BASE_URL}/login`, {
+      //method: "POST",
+      //headers: {
+        //"Content-Type": "application/json",
+      //},
+      //body: JSON.stringify({ email, password }),
+    //});
+
+    //if (!response.ok) {
+      //throw new Error("Login failed. Please check your credentials.");
+    //}
+
+    //const data = await response.json();
+    //return data; // backend should return something like { success: true, token: "..." }
+  //} catch (error) {
+    //console.error("Login API error:", error);
+    //throw error;
+  //}
+//};
+
+// ======================
+// SIGN UP FUNCTION
+// ======================
+// Temporary mock backend
+//replace the fake version after come out with the real one
+
+// SIGN UP FUNCTION
 export const registerUser = async (userData) => { 
   console.log("Registering user:", userData);
   return new Promise((resolve, reject) => {
@@ -147,6 +197,55 @@ export const resolveAlertsForDevice = async (deviceId) => {
     return await response.json();
   } catch (error) {
     console.error("Error resolving alerts for device:", error);
+    throw error;
+  }
+};
+
+export const fetchDeviceHistory = async (deviceId, rangeKey) => {
+  try {
+    // deviceId is the raw ID (e.g., 1), rangeKey is '1H', '24H', or '7D'
+    const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/history?range=${rangeKey}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch device history');
+    }
+    return await response.json(); // This will be an array of readings
+  } catch (error) {
+    console.error("Error fetching device history:", error);
+    throw error;
+  }
+};
+
+export const fetchSpeciesList = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/species/all`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch species list');
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching species list:", error);
+    throw error;
+  }
+};
+
+// ⬇️ *** ADD THIS FUNCTION *** ⬇️
+export const addNewDevice = async (deviceData) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/devices/add`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(deviceData),
+    });
+    
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || 'Failed to add device');
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error adding new device:", error);
     throw error;
   }
 };

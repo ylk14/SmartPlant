@@ -7,8 +7,15 @@ import { useNavigation } from '@react-navigation/native';
 import AdminUsersScreen from '../screens/admin/AdminUsersScreen';
 import AdminFlagUnsureScreen from '../screens/admin/AdminFlagUnsureScreen';
 import AdminHeatmapScreen from '../screens/admin/AdminHeatmapScreen';
+import AdminActivityScreen from '../screens/admin/AdminActivityScreen';
 import AdminIotScreen from '../screens/admin/AdminIotScreen';
-import { ADMIN_USERS, ADMIN_FLAG_UNSURE, ADMIN_HEATMAP, ADMIN_IOT } from './routes';
+import {
+  ADMIN_USERS,
+  ADMIN_FLAG_UNSURE,
+  ADMIN_HEATMAP,
+  ADMIN_IOT,
+  ADMIN_ACTIVITY,
+} from './routes';
 import AdminSupportAgent from '../screens/admin/components/AdminSupportAgent';
 
 const Drawer = createDrawerNavigator();
@@ -65,6 +72,11 @@ function AdminDrawerContent(props) {
 
 const drawerScreens = [
   {
+    name: ADMIN_ACTIVITY,
+    label: 'Activity',
+    component: AdminActivityScreen,
+  },
+  {
     name: ADMIN_USERS,
     label: 'Users',
     component: AdminUsersScreen,
@@ -107,25 +119,22 @@ export default function AdminNavigator() {
           drawerLabelStyle: { fontSize: 15, fontWeight: '500', marginLeft: -12 },
       }}
     >
- {drawerScreens.map((screen) => {
-          const ScreenComponent = screen.component;
-          return (
-            <Drawer.Screen
-              key={screen.name}
-              name={screen.name}
-              options={{
-                title: screen.label,
-              }}
-            >
-              {(props) => (
-                <View style={{ flex: 1 }}>
-                  <ScreenComponent {...props} />
-                  <AdminSupportAgent />
-                </View>
-              )}
-            </Drawer.Screen>
-          );
-        })}
+        {drawerScreens.map((screen) => (
+          <Drawer.Screen
+            key={screen.name}
+            name={screen.name}
+            options={{
+              title: screen.label,
+            }}
+          >
+            {(props) => (
+              <View style={{ flex: 1 }}>
+                <screen.component {...props} />
+                <AdminSupportAgent />
+              </View>
+            )}
+          </Drawer.Screen>
+        ))}
     </Drawer.Navigator>
   );
 }
