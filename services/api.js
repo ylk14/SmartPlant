@@ -1,8 +1,30 @@
-// api.js
-// All backend API connection functions are stored here
+import axios from 'axios';
+import { Platform } from 'react-native';
 
-const API_BASE_URL = "http://192.168.88.39:3000/api"; 
-// 🔧 Backend team: replace with your actual base URL later
+const PORT = 3000;
+// const HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
+// const API_BASE_URL = "http://192.168.88.39:3000/api";
+const HOST = '192.168.0.112';
+export const API_BASE_URL = `http://${HOST}:${PORT}`;
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 20000,
+});
+
+api.interceptors.request.use(cfg => {
+  console.log('[api] ->', cfg.method?.toUpperCase(), cfg.baseURL + cfg.url);
+  return cfg;
+});
+api.interceptors.response.use(
+  r => r,
+  err => {
+    console.log('[api] <- error', err.response?.status, err.config?.url, err.response?.data);
+    throw err;
+  }
+);
+
+export default api; 
 
 // ======================
 // LOGIN FUNCTION
