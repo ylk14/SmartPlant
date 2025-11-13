@@ -4,98 +4,126 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  FlatList,
   Image,
-  TextInput,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 
-// ✅ use your tab route constant so it always matches RootNavigator
 import { TAB_IDENTIFY } from "../navigation/routes";
 
 export default function HomeScreen({ navigation }) {
-  const userName = "Ali"; // example placeholder, remove this later
-
-  const plants = [
-    { id: "1", name: "Aloe Vera", image: require("../../assets/aloe.jpg") },
-    { id: "2", name: "Snake Plant", image: require("../../assets/snakeplant.jpg") },
-    { id: "3", name: "Monstera", image: require("../../assets/monstera.jpg") },
-  ];
-
-  const renderPlant = ({ item }) => (
-    <TouchableOpacity style={styles.plantButton}>
-      <Image source={item.image} style={styles.plantImage} />
-      <Text style={styles.plantName}>{item.name}</Text>
-    </TouchableOpacity>
-  );
+  const userName = "Ali";
 
   return (
     <LinearGradient colors={["#FFFFFF", "#F7FFED"]} style={styles.container}>
-      {/* Welcome */}
-      <Text style={styles.welcome}>Welcome, {userName} 👋</Text>
-
-      {/* Search */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#797979" />
-        <TextInput
-          placeholder="Search plants, guides, or users..."
-          placeholderTextColor="#888"
-          style={styles.searchInput}
-        />
+      {/* Header Section */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.greeting}>Hello, {userName}</Text>
+          <Text style={styles.tagline}>Discover Sarawak's Biodiversity</Text>
+        </View>
       </View>
 
-      {/* Identify CTA (go to Identify tab) */}
-      <TouchableOpacity
-        style={styles.bigButtonContainer}
-        onPress={() => navigation.navigate(TAB_IDENTIFY)}
-      >
-        <LinearGradient colors={["#F6EFB9", "#E3E59B"]} style={styles.bigButton}>
-          <Text style={styles.buttonText}>Identify Plants</Text>
-          <Image
-            source={require("../../assets/IdentifyIcon.png")}
-            style={styles.buttonLogo}
-          />
-        </LinearGradient>
-      </TouchableOpacity>
-
-      {/* Heatmap + Favourite shortcuts */}
-      <View style={styles.rowButtons}>
+      {/* Main Action Cards */}
+      <View style={styles.cardsContainer}>
+        {/* Primary Action - Identify Plants */}
         <TouchableOpacity
-          style={styles.smallButtonContainer}
-          onPress={() => navigation.navigate("Heatmap")}
+          style={styles.primaryCard}
+          onPress={() => navigation.navigate(TAB_IDENTIFY)}
         >
-          <LinearGradient colors={["#9C9872", "#B1AD8B"]} style={styles.smallButton}>
-            <Text style={styles.buttonText}>Heatmap</Text>
-            <Image
-              source={require("../../assets/MapIcon.png")}
-              style={styles.buttonLogoSmall}
-            />
+          <LinearGradient 
+            colors={["#F6EFB9", "#E3E59B"]} 
+            style={styles.cardGradient}
+          >
+            <View style={styles.cardContent}>
+              <View style={styles.cardText}>
+                <Text style={styles.primaryTitle}>Identify Plants</Text>
+                <Text style={styles.primarySubtitle}>Snap a photo to identify any plant</Text>
+              </View>
+              <Image
+                source={require("../../assets/IdentifyIcon.png")}
+                style={styles.primaryIcon}
+              />
+            </View>
+            <View style={styles.cardFooter}>
+              <Text style={styles.cardHint}>Tap to start →</Text>
+            </View>
           </LinearGradient>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.smallButtonContainer}>
-          <LinearGradient colors={["#A5C8A3", "#7FB97D"]} style={styles.smallButton}>
-            <Text style={styles.buttonText}>Favourite</Text>
-            <Image
-              source={require("../../assets/FavoriteIcon.png")}
-              style={styles.buttonLogoSmall}
-            />
-          </LinearGradient>
-        </TouchableOpacity>
+        {/* Secondary Actions Row */}
+        <View style={styles.secondaryRow}>
+          {/* Heatmap Card */}
+          <TouchableOpacity
+            style={styles.secondaryCard}
+            onPress={() => navigation.navigate("Heatmap")}
+          >
+            <LinearGradient 
+              colors={["#9C9872", "#B1AD8B"]} 
+              style={styles.cardGradient}
+            >
+              <View style={styles.secondaryContent}>
+                <Image
+                  source={require("../../assets/MapIcon.png")}
+                  style={styles.secondaryIcon}
+                />
+                <Text style={styles.secondaryTitle}>Explore Heatmap</Text>
+                <Text style={styles.secondaryDescription}>View plant observations</Text>
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          {/* Discover Card */}
+          <TouchableOpacity
+            style={styles.secondaryCard}
+            onPress={() => navigation.navigate("Search")}
+          >
+            <LinearGradient 
+              colors={["#A5C8A3", "#7FB97D"]} 
+              style={styles.cardGradient}
+            >
+              <View style={styles.secondaryContent}>
+                <Image
+                  source={require("../../assets/FavoriteIcon.png")}
+                  style={styles.secondaryIcon}
+                />
+                <Text style={styles.secondaryTitle}>Discover More</Text>
+                <Text style={styles.secondaryDescription}>Browse plant species</Text>
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Discover */}
-      <Text style={styles.discoverTitle}>Discover more...</Text>
-      <View style={styles.discoverContainer}>
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={plants}
-          renderItem={renderPlant}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingRight: 12 }}
-        />
+      {/* Features Section with MUI Icons */}
+      <View style={styles.featuresSection}>
+        <View style={styles.featureItem}>
+          <Ionicons name="leaf" size={18} color="#2F6C4F" />
+          <View style={styles.featureText}>
+            <Text style={styles.featureTitle}>Rich Biodiversity</Text>
+            <Text style={styles.featureDescription}>Explore Sarawak's unique plant species</Text>
+          </View>
+        </View>
+        
+        <View style={styles.featureDivider} />
+        
+        <View style={styles.featureItem}>
+          <Ionicons name="pulse" size={18} color="#2F6C4F" />
+          <View style={styles.featureText}>
+            <Text style={styles.featureTitle}>Real-time Data</Text>
+            <Text style={styles.featureDescription}>Access current plant observations</Text>
+          </View>
+        </View>
+        
+        <View style={styles.featureDivider} />
+        
+        <View style={styles.featureItem}>
+          <Ionicons name="time" size={18} color="#2F6C4F" />
+          <View style={styles.featureText}>
+            <Text style={styles.featureTitle}>24/7 Available</Text>
+            <Text style={styles.featureDescription}>Identify plants anytime, anywhere</Text>
+          </View>
+        </View>
       </View>
     </LinearGradient>
   );
@@ -104,70 +132,152 @@ export default function HomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingTop: 60,
-    paddingBottom: 24, // room above your floating tab bar
+    paddingBottom: 20,
   },
-  welcome: {
-    fontSize: 26,
+  header: {
+    marginTop: 10,
+    marginBottom: 25, // Reduced to give more space for buttons
+  },
+  greeting: {
+    fontSize: 28,
     fontWeight: "bold",
-    marginBottom: 15,
-    color: "#565943",
+    color: "#244332",
+    marginBottom: 6,
   },
-  searchContainer: {
+  tagline: {
+    fontSize: 16,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+  cardsContainer: {
+    flex: 1,
+    justifyContent: "flex-start",
+    gap: 20,
+    marginBottom: 10,
+  },
+  primaryCard: {
+    borderRadius: 20,
+    overflow: "hidden",
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    height: 180, 
+  },
+  secondaryRow: {
     flexDirection: "row",
+    gap: 16,
+    height: 160, 
+  },
+  secondaryCard: {
+    flex: 1,
+    borderRadius: 16,
+    overflow: "hidden",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  cardGradient: {
+    flex: 1,
+    padding: 22, 
+  },
+  cardContent: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#edededff",
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    marginBottom: 25,
-    height: 45,
   },
-  searchInput: { flex: 1, marginLeft: 8, color: "#333" },
-
-  bigButtonContainer: { marginBottom: 20 },
-  bigButton: {
-    height: 150,
-    borderRadius: 20,
-    padding: 15,
-    justifyContent: "flex-end",
+  cardText: {
+    flex: 1,
   },
-
-  rowButtons: { flexDirection: "row", gap: 10, marginBottom: 22 },
-  smallButtonContainer: { flex: 1 },
-  smallButton: {
-    height: 150,
-    borderRadius: 20,
-    padding: 15,
-    justifyContent: "flex-end",
+  primaryTitle: {
+    fontSize: 27, // Slightly larger
+    fontWeight: "bold",
+    color: "#2F3E46",
+    marginBottom: 6,
   },
-
-  buttonText: { color: "#fff", fontSize: 22, fontWeight: "bold" },
-  buttonLogo: {
-    position: "absolute",
-    top: 15,
-    right: 2,
-    width: 140,
-    height: 100,
+  primarySubtitle: {
+    fontSize: 15, // Slightly larger
+    color: "#4A5568",
+    fontWeight: "500",
   },
-  buttonLogoSmall: {
-    position: "absolute",
-    top: 15,
-    right: 5,
-    width: 80,
-    height: 100,
+  primaryIcon: {
+    width: 105, // Slightly larger
+    height: 85, // Slightly larger
     resizeMode: "contain",
   },
-
-  discoverTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 10,
-    color: "#2F4F2F",
+  cardFooter: {
+    marginTop: 12,
   },
-  discoverContainer: { height: 130 },
-
-  plantButton: { alignItems: "center", marginRight: 30 },
-  plantImage: { width: 100, height: 100, borderRadius: 40 },
-  plantName: { marginTop: 5, color: "#333", fontWeight: "600" },
+  cardHint: {
+    fontSize: 14, // Slightly larger
+    color: "#2F3E46",
+    fontWeight: "600",
+    opacity: 0.8,
+  },
+  secondaryContent: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 10, // Slightly more gap
+  },
+  secondaryIcon: {
+    width: 45, // Increased from 40
+    height: 45, // Increased from 40
+    resizeMode: "contain",
+  },
+  secondaryTitle: {
+    fontSize: 17, // Slightly larger
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    textAlign: "center",
+  },
+  secondaryDescription: {
+    fontSize: 13, // Slightly larger
+    color: "#FFFFFF",
+    textAlign: "center",
+    opacity: 0.9,
+  },
+  featuresSection: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 12,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    marginBottom: 10,
+  },
+  featureItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingVertical: 6,
+  },
+  featureText: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  featureTitle: {
+    fontSize: 13,
+    fontWeight: "bold",
+    color: "#244332",
+    marginBottom: 2,
+  },
+  featureDescription: {
+    fontSize: 11,
+    color: "#64748B",
+    fontWeight: "500",
+    lineHeight: 14,
+  },
+  featureDivider: {
+    height: 1,
+    backgroundColor: "#E2E8F0",
+    marginVertical: 6,
+  },
 });
