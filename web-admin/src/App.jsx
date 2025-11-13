@@ -6,7 +6,7 @@ import Users from "./pages/Users";
 import Flags from "./pages/Flags";
 import Heatmap from "./pages/Heatmap";
 import IoT from "./pages/IoT";
-import Analytics from "./pages/Analytics";
+import IotAnalytics from "./pages/IotAnalytics";
 import Login from "./pages/Login";
 
 export default function App() {
@@ -115,10 +115,10 @@ export default function App() {
         />
         
         <Route 
-          path="/analytics" 
+          path="/iot-analytics" 
           element={
             isAuthenticated ? 
-            <AdminLayout onLogout={handleLogout}><Analytics /></AdminLayout> : 
+            <AdminLayout onLogout={handleLogout}><IotAnalytics /></AdminLayout> : 
             <Navigate to="/login" replace />
           } 
         />

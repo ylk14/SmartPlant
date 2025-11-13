@@ -31,7 +31,7 @@ export default function LoginScreen({ navigation }) {
     return Math.floor(100000 + Math.random() * 900000).toString();
   };
 
-  // Handle credentials submission
+  // Handle credentials submission - FIXED VERSION
   const handleCredentialsSubmit = async () => {
     if (!email || !password) {
       Alert.alert("Missing Fields", "Please enter both email and password.");
@@ -40,27 +40,33 @@ export default function LoginScreen({ navigation }) {
 
     setLoading(true);
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // For demo purposes - in real app, this would be your API response
-      const code = generateMockCode();
-      setMockCode(code);
-      setUserEmail(email);
+      // First validate credentials with the API
+      const credentialsResponse = await loginUser(email, password);
       
-      // Simulate sending code to email
-      console.log(`🔐 MOCK EMAIL: Your verification code is ${code}`);
-      
-      // Move to MFA step
-      setStep(2);
+      // Check if credentials are valid
+      if (credentialsResponse.success) {
+        // If credentials are valid, generate and send MFA code
+        const code = generateMockCode();
+        setMockCode(code);
+        setUserEmail(email);
+        
+        // Simulate sending code to email
+        console.log(`MOCK EMAIL: Your verification code is ${code}`);
+        
+        // Move to MFA step ONLY if credentials are valid
+        setStep(2);
+      } else {
+        // If credentials are invalid, show error and stay on step 1
+        throw new Error(credentialsResponse.message || 'Invalid email or password');
+      }
     } catch (err) {
-      Alert.alert("Login Failed", err.message);
+      Alert.alert("Login Failed", err.message || "Invalid email or password");
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle MFA verification
+  // Handle MFA verification - UPDATED VERSION
   const handleMFASubmit = async () => {
     if (mfaCode.length !== 6) {
       Alert.alert("Invalid Code", "Please enter a 6-digit verification code.");
@@ -69,22 +75,20 @@ export default function LoginScreen({ navigation }) {
 
     setLoading(true);
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Mock MFA code verification
+      // Verify MFA code
       if (mfaCode === mockCode) {
-        // Success - proceed with actual login
-        const response = await loginUser(email, password);
-        if (response.success) {
+        // MFA successful - complete the login process
+        const finalResponse = await loginUser(email, password);
+        
+        if (finalResponse.success) {
           const destinations = {
             admin: ADMIN_ROOT,
             user: ROOT_TABS,
           };
-          const destination = destinations[response.role] ?? ROOT_TABS;
+          const destination = destinations[finalResponse.role] ?? ROOT_TABS;
           Alert.alert(
             "Login Successful",
-            `Signed in as ${response.role === 'admin' ? 'administrator' : 'user'}.`
+            `Signed in as ${finalResponse.role === 'admin' ? 'administrator' : 'user'}.`
           );
           
           if (rememberMe) {
@@ -95,6 +99,8 @@ export default function LoginScreen({ navigation }) {
             index: 0,
             routes: [{ name: destination }],
           });
+        } else {
+          throw new Error('Login failed after MFA verification');
         }
       } else {
         throw new Error('Invalid verification code');
@@ -113,7 +119,7 @@ export default function LoginScreen({ navigation }) {
       await new Promise(resolve => setTimeout(resolve, 500));
       const newCode = generateMockCode();
       setMockCode(newCode);
-      console.log(`🔐 MOCK EMAIL: Your new verification code is ${newCode}`);
+      console.log(`MOCK EMAIL: Your new verification code is ${newCode}`);
       Alert.alert("Code Sent", "New verification code sent! Check console for development mode.");
     } catch (err) {
       Alert.alert("Error", "Failed to resend code");
@@ -274,7 +280,7 @@ export default function LoginScreen({ navigation }) {
               
               {/* Mock code display */}
               <View style={styles.mockCodeDisplay}>
-                <Text style={styles.mockTitle}>🛠️ DEVELOPMENT MODE</Text>
+                <Text style={styles.mockTitle}>DEVELOPMENT MODE</Text>
                 <Text style={styles.mockCodeText}>
                   Your verification code is: <Text style={styles.codeHighlight}>{mockCode}</Text>
                 </Text>

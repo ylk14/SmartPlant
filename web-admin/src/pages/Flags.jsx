@@ -1,5 +1,9 @@
 import React, { useEffect, useState } from "react";
 import axios from "../utils/axios";
+import SearchIcon from "@mui/icons-material/Search";
+import LocalFloristIcon from "@mui/icons-material/LocalFlorist";
+import ZoomInIcon from "@mui/icons-material/ZoomIn";
+import WarningIcon from "@mui/icons-material/Warning";
 
 export default function FlaggedPlants() {
   const [items, setItems] = useState([]);
@@ -12,7 +16,7 @@ export default function FlaggedPlants() {
   const [identifiedName, setIdentifiedName] = useState("");
   const [imageLoaded, setImageLoaded] = useState(false);
 
-  // ✅ Updated Mock data (matching mobile version structure)
+  // Updated Mock data (matching mobile version structure)
   const MOCK_FLAGGED = [
     {
       observation_id: "OBS-3011",
@@ -61,14 +65,14 @@ export default function FlaggedPlants() {
     loadFlagged();
   }, []);
 
-  // ✅ Search filter
+  // Search filter
   const filtered = items.filter((item) =>
     Object.values(item).some((v) =>
       v.toString().toLowerCase().includes(searchQuery.toLowerCase())
     )
   );
 
-  // ✅ Utility functions
+  // Utility functions
   const toPercent = (score) => `${Math.round(score * 100)}%`;
 
   const formatDate = (iso) => {
@@ -76,10 +80,10 @@ export default function FlaggedPlants() {
     return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
   };
 
-  // ✅ NEW: Check if confidence is low (from mobile)
+  // Check if confidence is low 
   const isLowConfidence = (confidence) => confidence < 0.5;
 
-  // ✅ Modal handlers - FIXED: Prevent body scroll when modal is open
+  // Modal handlers - FIXED: Prevent body scroll when modal is open
   const handleReview = (observation) => {
     setSelectedObservation(observation);
     setShowReviewModal(true);
@@ -135,7 +139,7 @@ export default function FlaggedPlants() {
 
   return (
     <>
-      {/* ✅ Embedded CSS for modals */}
+      {/* Embedded CSS for modals */}
       <style>
         {`
           .modal-overlay {
@@ -218,6 +222,9 @@ export default function FlaggedPlants() {
             padding: 8px;
             color: white;
             font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
           }
 
           .identify-modal-overlay {
@@ -315,7 +322,7 @@ export default function FlaggedPlants() {
             padding: 2px 6px;
             border-radius: 8px;
             text-transform: uppercase;
-            margin-left: 8px;
+            margin-top: 4px;
           }
 
           /* NEW: Endangered badge styles */
@@ -326,7 +333,9 @@ export default function FlaggedPlants() {
             background-color: #FEE2E2;
             padding: 4px 8px;
             border-radius: 8px;
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
             margin-top: 4px;
           }
         `}
@@ -340,9 +349,9 @@ export default function FlaggedPlants() {
           </p>
         </div>
 
-        {/* ✅ Search bar */}
+        {/* Search bar */}
         <div style={styles.searchBar}>
-          <span style={styles.searchIcon}>🔍</span>
+          <SearchIcon style={styles.searchIcon} />
           <input
             style={styles.searchInput}
             placeholder="Search by plant name, location, or observation ID"
@@ -360,7 +369,7 @@ export default function FlaggedPlants() {
           )}
         </div>
 
-        {/* ✅ Table structure */}
+        {/* Table structure */}
         <div style={styles.table}>
           <div style={styles.tableHeader}>
             <div style={styles.headerCellWide}>Plant</div>
@@ -371,7 +380,7 @@ export default function FlaggedPlants() {
           {filtered.length === 0 ? (
             <div style={styles.emptyState}>
               <div style={styles.emptyStateContent}>
-                <span style={styles.emptyStateIcon}>🌿</span>
+                <LocalFloristIcon style={styles.emptyStateIcon} />
                 <p style={styles.emptyStateText}>
                   {searchQuery ? 'No matching flagged plants found.' : 'No flagged plants awaiting review.'}
                 </p>
@@ -387,10 +396,12 @@ export default function FlaggedPlants() {
                 </div>
                 <div style={styles.cell}>
                   <div style={styles.confidenceCell}>
-                    {toPercent(item.confidence)}
-                    {/* NEW: Low confidence badge */}
+                    <div style={styles.confidenceValue}>
+                      {toPercent(item.confidence)}
+                    </div>
+                    {/* NEW: Low confidence badge below the score */}
                     {isLowConfidence(item.confidence) && (
-                      <span className="low-confidence-badge">Low</span>
+                      <div className="low-confidence-badge">Low</div>
                     )}
                   </div>
                 </div>
@@ -407,7 +418,7 @@ export default function FlaggedPlants() {
           )}
         </div>
 
-        {/* ✅ Review Modal */}
+        {/* Review Modal */}
         {showReviewModal && selectedObservation && (
           <div className="modal-overlay" onClick={handleCloseModal}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -426,7 +437,9 @@ export default function FlaggedPlants() {
                       setImageLoaded(true);
                     }}
                   />
-                  <div className="resize-badge">🔍</div>
+                  <div className="resize-badge">
+                    <ZoomInIcon style={{ fontSize: 16, color: 'white' }} />
+                  </div>
                 </div>
 
                 <h1 style={styles.modalTitle}>{selectedObservation.plant_name}</h1>
@@ -435,14 +448,11 @@ export default function FlaggedPlants() {
                 {/* Confidence section with low confidence note */}
                 <div style={styles.section}>
                   <div style={styles.sectionLabel}>Confidence</div>
-                  <div style={styles.sectionValue}>
+                  <div style={styles.confidenceValue}>
                     {Math.round(selectedObservation.confidence * 100)}%
-                    {isLowConfidence(selectedObservation.confidence) && (
-                      <span className="low-confidence-badge" style={{marginLeft: '8px'}}>Low</span>
-                    )}
                   </div>
                   {isLowConfidence(selectedObservation.confidence) && (
-                    <div style={styles.sectionMeta}>Low confidence - requires manual review</div>
+                    <div className="low-confidence-badge">Low confidence - requires manual review</div>
                   )}
                 </div>
 
@@ -451,7 +461,10 @@ export default function FlaggedPlants() {
                   <div style={styles.sectionLabel}>Location</div>
                   <div style={styles.sectionValue}>{selectedObservation.location}</div>
                   {selectedObservation.is_endangered && (
-                    <div className="endangered-badge">⚠️ Endangered Species</div>
+                    <div className="endangered-badge">
+                      <WarningIcon style={{ fontSize: 16 }} />
+                      Endangered Species
+                    </div>
                   )}
                 </div>
 
@@ -476,7 +489,7 @@ export default function FlaggedPlants() {
           </div>
         )}
 
-        {/* ✅ FIXED: Stable Image Preview Modal */}
+        {/* FIXED: Stable Image Preview Modal */}
         {showImageModal && selectedObservation && (
           <div 
             style={{
@@ -539,7 +552,7 @@ export default function FlaggedPlants() {
           </div>
         )}
 
-        {/* ✅ Identify Modal */}
+        {/* Identify Modal */}
         {showIdentifyModal && (
           <div className="identify-modal-overlay" onClick={() => handleIdentifyModal(false)}>
             <div className="identify-modal-content" onClick={(e) => e.stopPropagation()}>
@@ -577,7 +590,7 @@ export default function FlaggedPlants() {
 }
 
 //
-// ✅ INLINE CSS — MATCHING MOBILE APP DESIGN
+// INLINE CSS — MATCHING MOBILE APP DESIGN
 //
 const styles = {
   container: {
@@ -614,7 +627,7 @@ const styles = {
     maxWidth: "500px",
   },
   searchIcon: {
-    fontSize: "16px",
+    fontSize: "20px",
     color: "#64748B",
   },
   searchInput: {
@@ -667,8 +680,7 @@ const styles = {
     color: '#0F172A',
     textTransform: 'uppercase',
     letterSpacing: '0.6px',
-    textAlign: 'right',
-    paddingRight: '12px',
+    textAlign: 'center', 
   },
   headerCellAction: {
     fontSize: 13,
@@ -676,8 +688,7 @@ const styles = {
     color: '#0F172A',
     textTransform: 'uppercase',
     letterSpacing: '0.6px',
-    textAlign: 'right',
-    paddingRight: '4px',
+    textAlign: 'center', 
   },
   tableRow: {
     display: 'grid',
@@ -703,19 +714,24 @@ const styles = {
   cell: {
     fontSize: 13,
     color: '#334155',
-    textAlign: 'right',
-    paddingRight: '12px',
+    textAlign: 'center', 
   },
-  // Confidence cell with badge
+  // Confidence cell with badge below score
   confidenceCell: {
     display: 'flex',
+    flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: '8px',
+    justifyContent: 'center',
+    gap: '4px',
+  },
+  confidenceValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2A37',
   },
   cellAction: {
     display: 'flex',
-    justifyContent: 'flex-end',
+    justifyContent: 'center', 
   },
   reviewButton: {
     padding: '6px 16px',
@@ -739,7 +755,7 @@ const styles = {
     gap: '12px',
   },
   emptyStateIcon: {
-    fontSize: '32px',
+    fontSize: '48px',
     color: '#94A3B8',
   },
   emptyStateText: {

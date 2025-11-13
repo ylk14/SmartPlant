@@ -5,6 +5,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 
 export default function CameraScreen() {
   const nav = useNavigation();
@@ -14,6 +15,8 @@ export default function CameraScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState('back');
   const [isReady, setIsReady] = useState(false);
+  const [locationPermission, setLocationPermission] = useState(null);
+  const [coords, setCoords] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -25,6 +28,96 @@ export default function CameraScreen() {
       }
     })();
   }, [permission, requestPermission]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const hydrateLocation = async () => {
+      try {
+        const existing = await Location.getForegroundPermissionsAsync();
+        if (!isMounted) return;
+
+        if (existing.status === 'granted') {
+          setLocationPermission('granted');
+          try {
+            const position = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced,
+            });
+            if (isMounted) setCoords(position.coords);
+          } catch (err) {
+            console.warn('getCurrentPositionAsync error:', err);
+          }
+          return;
+        }
+
+        setLocationPermission(existing.status);
+
+        Alert.alert(
+          'Share your location?',
+          'Location helps us map species distribution and protect endangered habitats with targeted IoT monitoring.',
+          [
+            { text: 'Not now', style: 'cancel' },
+            {
+              text: 'Allow',
+              onPress: async () => {
+                try {
+                  const request = await Location.requestForegroundPermissionsAsync();
+                  if (!isMounted) return;
+                  if (request.status === 'granted') {
+                    setLocationPermission('granted');
+                    try {
+                      const position = await Location.getCurrentPositionAsync({
+                        accuracy: Location.Accuracy.Balanced,
+                      });
+                      if (isMounted) setCoords(position.coords);
+                    } catch (err) {
+                      console.warn('getCurrentPositionAsync error:', err);
+                    }
+                  }
+                } catch (err) {
+                  console.warn('requestForegroundPermissionsAsync error:', err);
+                }
+              },
+            },
+          ],
+        );
+      } catch (err) {
+        console.warn('Location permission flow failed:', err);
+      }
+    };
+
+    hydrateLocation();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const buildLocationPayload = (exif) => {
+    if (exif?.GPSLatitude && exif?.GPSLongitude) {
+      const latitude = Array.isArray(exif.GPSLatitude) ? exif.GPSLatitude[0] : exif.GPSLatitude;
+      const longitude = Array.isArray(exif.GPSLongitude) ? exif.GPSLongitude[0] : exif.GPSLongitude;
+      if (typeof latitude === 'number' && typeof longitude === 'number') {
+        return {
+          latitude,
+          longitude,
+          source: 'exif',
+        };
+      }
+    }
+
+    if (coords) {
+      return {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        accuracy: coords.accuracy,
+        source: 'device',
+        permission: locationPermission,
+      };
+    }
+
+    return undefined;
+  };
 
   const requestLibraryPermissions = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -51,6 +144,7 @@ export default function CameraScreen() {
           uri: asset.uri,
           source: 'library',
           exif: asset.exif ?? null,
+          location: buildLocationPayload(asset.exif ?? null),
         });
       }
     } catch (e) {
@@ -63,7 +157,12 @@ export default function CameraScreen() {
       if (!camRef.current) return;
       const photo = await camRef.current.takePictureAsync({ quality: 1, exif: true });
       if (photo?.uri) {
-        nav.navigate('Preview', { uri: photo.uri, source: 'camera', exif: photo.exif ?? null });
+        nav.navigate('Preview', {
+          uri: photo.uri,
+          source: 'camera',
+          exif: photo.exif ?? null,
+          location: buildLocationPayload(photo.exif ?? null),
+        });
       }
     } catch (e) {
       console.warn('takePicture error:', e);
