@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Alert, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import api from '../../../services/api';
 
 const formatDate = (iso) => {
   const date = new Date(iso);
@@ -22,12 +24,47 @@ export default function AdminFlagReviewScreen({ route, navigation }) {
     );
   }
 
+  const handleApprove = async () => {
+    try {
+      console.log(`Approving observation ${observation.observation_id}...`);
+
+      // Call the new PATCH endpoint
+      await api.put(`/plant-observations/${observation.observation_id}`, { status: 'verified' });
+      
+      Alert.alert('Success', 'Observation approved', [
+        { text: 'OK', onPress: () => navigation.goBack() }
+      ]);
+    } catch (error) {
+      console.error('Approve error:', error);
+      Alert.alert('Error', 'Could not approve observation');
+    }
+  };
+
+  const handleIdentify = async (newSpeciesName) => {
+    try {
+      console.log(`Re-identifying observation ${observation.observation_id} as ${newSpeciesName}...`);
+      await api.put(`/plant-observations/${observation.observation_id}`, {
+        status: 'verified',
+        species_name: newSpeciesName,
+        notes: `Re-identified as: ${newSpeciesName}`,
+      });
+
+      setIdentifyVisible(false);
+      Alert.alert('Success', 'Observation updated with new identification', [
+          { text: 'OK', onPress: () => navigation.goBack() }
+      ]);
+    } catch (error) {
+      console.error('Identify error:', error);
+      Alert.alert('Error', 'Could not update identification');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <TouchableOpacity activeOpacity={0.9} onPress={() => setShowImage(true)}>
           <View style={styles.photoWrapper}>
-            <Image source={observation.photo} style={styles.photo} />
+            <Image source={typeof observation.photo === 'string' ? { uri: observation.photo } : observation.photo} style={styles.photo} />
             <View style={styles.resizeBadge}>
               <Ionicons name="expand-outline" size={18} color="#FFFFFF" />
             </View>
@@ -63,11 +100,7 @@ export default function AdminFlagReviewScreen({ route, navigation }) {
                 'Confirm this observation is valid?',
                 [
                   { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Approve',
-                    style: 'default',
-                    onPress: () => Alert.alert('Approved', 'The observation has been approved.'),
-                  },
+                  { text: 'Approve', onPress: handleApprove },
                 ],
                 { cancelable: true }
               )
@@ -86,16 +119,20 @@ export default function AdminFlagReviewScreen({ route, navigation }) {
             <Text style={styles.identifyText}>Identify</Text>
           </TouchableOpacity>
         </View>
-        <Modal visible={showImage} transparent animationType="fade">
+
+        {/* Image Modal */}
+        <Modal visible={showImage} transparent animationType="fade" onRequestClose={() => setShowImage(false)}>
           <View style={styles.modalOverlay}>
             <TouchableOpacity style={styles.modalCloseArea} onPress={() => setShowImage(false)} />
-            <Image source={observation.photo} style={styles.modalImage} resizeMode="contain" />
+            <Image source={typeof observation.photo === 'string' ? { uri: observation.photo } : observation.photo} style={styles.modalImage} resizeMode="contain" />
             <TouchableOpacity style={styles.modalDismiss} onPress={() => setShowImage(false)}>
               <Text style={styles.modalDismissText}>Close</Text>
             </TouchableOpacity>
           </View>
         </Modal>
-        <Modal visible={identifyVisible} transparent animationType="fade">
+
+        {/* Identify Modal */}
+        <Modal visible={identifyVisible} transparent animationType="fade" onRequestClose={() => setIdentifyVisible(false)}>
           <View style={styles.modalOverlay}>
             <KeyboardAvoidingView
               behavior={Platform.select({ ios: 'padding', android: 'height' })}
@@ -123,10 +160,7 @@ export default function AdminFlagReviewScreen({ route, navigation }) {
                   <TouchableOpacity
                     style={[styles.confirmButton, !identifiedName && styles.confirmButtonDisabled]}
                     disabled={!identifiedName}
-                    onPress={() => {
-                      Alert.alert('Identified', `Recorded as ${identifiedName}.`);
-                      setIdentifyVisible(false);
-                    }}
+                    onPress={() => handleIdentify(identifiedName)}
                   >
                     <Text style={styles.confirmText}>Save</Text>
                   </TouchableOpacity>
@@ -135,6 +169,7 @@ export default function AdminFlagReviewScreen({ route, navigation }) {
             </KeyboardAvoidingView>
           </View>
         </Modal>
+        
       </ScrollView>
     </SafeAreaView>
   );
@@ -153,6 +188,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 220,
     borderRadius: 18,
+    backgroundColor: '#e1e4e8',
   },
   photoWrapper: {
     position: 'relative',
@@ -264,6 +300,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '70%',
     borderRadius: 12,
+    backgroundColor: '#333',
   },
   modalDismiss: {
     marginTop: 16,

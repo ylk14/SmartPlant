@@ -1,16 +1,47 @@
-// api.js
-// All backend API connection functions are stored here
+import axios from 'axios';
+import { Platform } from 'react-native';
 
-const API_BASE_URL = "http://192.168.88.39:3000/api"; 
-// 🔧 Backend team: replace with your actual base URL later
+const PORT = 3000;
+// const HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
+const HOST = '192.168.0.112';
+export const API_BASE_URL = `http://${HOST}:${PORT}`;
 
-// ======================
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 20000,
+});
+
+api.interceptors.request.use(cfg => {
+  console.log('[api] ->', cfg.method?.toUpperCase(), cfg.baseURL + cfg.url);
+  return cfg;
+});
+api.interceptors.response.use(
+  r => r,
+  err => {
+    console.log('[api] <- error', err.response?.status, err.config?.url, err.response?.data);
+    throw err;
+  }
+);
+
+export default api;
+
 // LOGIN FUNCTION
-// ======================
 const MOCK_ACCOUNTS = {
   "admin@smartplant.dev": { password: "admin123", role: "admin" },
   "ranger@smartplant.dev": { password: "user1234", role: "user" },
 };
+
+// --- HELPER FUNCTION ---
+// Handles errors from the API
+async function handleResponse(response) {
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({})); // Try to parse error, or return empty object
+    const errorMessage = errorData.error || `HTTP error! status: ${response.status}`;
+    console.error('API Error:', errorMessage);
+    throw new Error(errorMessage);
+  }
+  return response.json();
+}
 
 //mock version for testing
 export const loginUser = async (email, password) => {
@@ -27,6 +58,8 @@ export const loginUser = async (email, password) => {
     }, 700);
   });
 };
+
+// SIGN UP FUNCTION
 
 //handle MFA
 export const verifyMFA = async (userId, code) => {
@@ -75,6 +108,8 @@ export const resendMFACode = async (userId) => {
 // ======================
 // Temporary mock backend
 //replace the fake version after come out with the real one
+
+// SIGN UP FUNCTION
 export const registerUser = async (userData) => { 
   console.log("Registering user:", userData);
   return new Promise((resolve, reject) => {
@@ -89,32 +124,7 @@ export const registerUser = async (userData) => {
   });
 };
 
-//replace the api url after this and remove the mock version above
-//export const registerUser = async (userData) => {
-  //try {
-    //const response = await fetch(`${API_BASE_URL}/register`, {
-      //method: "POST",
-      //headers: {
-        //"Content-Type": "application/json",
-      //},
-      //body: JSON.stringify(userData),
-    //});
-
-    //if (!response.ok) {
-      //throw new Error("Failed to register. Please try again.");
-    //}
-
-    //const data = await response.json();
-    //return data;
-  //} catch (error) {
-    //console.error("Register API error:", error);
-    //throw error;
-  //}
-//};
-
-// ======================
 // FORGOT PASSWORD FUNCTION
-// ======================
 export const forgotPassword = async (email) => {
   try {
     const response = await fetch(`${API_BASE_URL}/forgot-password`, {
@@ -137,10 +147,7 @@ export const forgotPassword = async (email) => {
   }
 };
 
-// ======================
 // IOT SENSOR FUNCTIONS
-// ======================
-
 // Fetch all sensor readings
 export const fetchSensorData = async () => {
   try {
@@ -252,6 +259,27 @@ export const addNewDevice = async (deviceData) => {
     return await response.json();
   } catch (error) {
     console.error("Error adding new device:", error);
+    throw error;
+  }
+};
+
+export const fetchUserProfile = async (userId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/profile`);
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Error fetching user profile:", error);
+    throw error;
+  }
+};
+
+// (ProfileScreen) Fetches all posts for a specific user
+export const fetchUserPosts = async (userId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/posts`);
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Error fetching user posts:", error);
     throw error;
   }
 };
