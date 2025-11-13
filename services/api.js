@@ -220,3 +220,38 @@ export const fetchDeviceHistory = async (deviceId, rangeKey) => {
     throw error;
   }
 };
+
+export const fetchSpeciesList = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/species/all`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch species list');
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching species list:", error);
+    throw error;
+  }
+};
+
+// ⬇️ *** ADD THIS FUNCTION *** ⬇️
+export const addNewDevice = async (deviceData) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/devices/add`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(deviceData),
+    });
+    
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || 'Failed to add device');
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error adding new device:", error);
+    throw error;
+  }
+};
