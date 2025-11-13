@@ -31,6 +31,18 @@ const MOCK_ACCOUNTS = {
   "ranger@smartplant.dev": { password: "user1234", role: "user" },
 };
 
+// --- HELPER FUNCTION ---
+// Handles errors from the API
+async function handleResponse(response) {
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({})); // Try to parse error, or return empty object
+    const errorMessage = errorData.error || `HTTP error! status: ${response.status}`;
+    console.error('API Error:', errorMessage);
+    throw new Error(errorMessage);
+  }
+  return response.json();
+}
+
 //mock version for testing
 export const loginUser = async (email, password) => {
   const key = email.trim().toLowerCase();
@@ -247,6 +259,27 @@ export const addNewDevice = async (deviceData) => {
     return await response.json();
   } catch (error) {
     console.error("Error adding new device:", error);
+    throw error;
+  }
+};
+
+export const fetchUserProfile = async (userId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/profile`);
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Error fetching user profile:", error);
+    throw error;
+  }
+};
+
+// (ProfileScreen) Fetches all posts for a specific user
+export const fetchUserPosts = async (userId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/posts`);
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Error fetching user posts:", error);
     throw error;
   }
 };
