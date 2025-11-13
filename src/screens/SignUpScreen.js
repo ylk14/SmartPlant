@@ -10,7 +10,8 @@ import {
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { registerUser } from "../../services/api"; // ✅ Backend placeholder
+// ⬇️ *** IMPORT REAL REGISTER API *** ⬇️
+import { registerUser } from "../../services/api";
 
 export default function SignUpScreen({ navigation }) {
   const [name, setName] = useState("");
@@ -25,6 +26,12 @@ export default function SignUpScreen({ navigation }) {
   const validateForm = () => {
     if (!name || !email || !password || !confirmPassword) {
       Alert.alert("Missing Fields", "Please fill in all the fields.");
+      return false;
+    }
+    // Simple email regex
+    const emailRegex = /\S+@\S+\.\S+/;
+    if (!emailRegex.test(email)) {
+      Alert.alert("Invalid Email", "Please enter a valid email address.");
       return false;
     }
     if (password.length < 8) {
@@ -46,10 +53,19 @@ export default function SignUpScreen({ navigation }) {
 
     setLoading(true);
     try {
-      const response = await registerUser({ name, email, password });
+      // ⬇️ *** CALL REAL REGISTER API *** ⬇️
+      // We pass the name, email, and password
+      const response = await registerUser({ 
+        username: name, // Your ER diagram shows 'username'
+        email, 
+        password 
+      });
+      
       if (response.success) {
-        Alert.alert("Account Created", "You can now log in!");
-        navigation.navigate("Login");
+        Alert.alert("Account Created", response.message || "You can now log in!");
+        navigation.navigate("Login"); // Go to login screen after success
+      } else {
+        throw new Error(response.message || 'Sign up failed');
       }
     } catch (error) {
       Alert.alert("Sign Up Failed", error.message || "Something went wrong.");
@@ -174,7 +190,7 @@ export default function SignUpScreen({ navigation }) {
   );
 }
 
-// ✅ Styles (Identical to LoginScreen)
+// ✅ Styles (Unchanged)
 const styles = StyleSheet.create({
   background: {
     flex: 1,
@@ -268,5 +284,3 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
 });
-
-
