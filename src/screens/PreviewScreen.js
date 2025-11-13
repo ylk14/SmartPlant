@@ -7,7 +7,8 @@ import * as Location from 'expo-location';
 import ScannerOverlay from '../screens/components/ScannerOverlay'; 
 
 // const API_BASE = 'http://localhost:3000';
-const API_BASE = 'http://10.0.2.2:3000';
+// const API_BASE = 'http://10.0.2.2:3000';
+const API_BASE = '192.168.0.112:3000';
 const LOW_CONFIDENCE_THRESHOLD = 60;
 
 export default function PreviewScreen() {
@@ -91,7 +92,8 @@ export default function PreviewScreen() {
 
       // temp hardcoded user for testing
       form.append('user_id', '1');
-
+      
+      console.log('[scan] posting to', `${API_BASE}/scan`);
       const res = await fetch(`${API_BASE}/scan`, {
         method: 'POST',
         headers: { 'Content-Type': 'multipart/form-data' },
