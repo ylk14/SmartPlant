@@ -9,33 +9,49 @@ import IoT from "./pages/IoT";
 import IotAnalytics from "./pages/IotAnalytics";
 import Login from "./pages/Login";
 
+// A helper component for our new role check
+const AdminRoute = ({ user, onLogout, children }) => {
+  if (user && user.role_name === 'admin') {
+    return <AdminLayout user={user} onLogout={onLogout}>{children}</AdminLayout>;
+  }
+  // If not admin, redirect them
+  return <Navigate to="/dashboard" replace />;
+};
+
+// A helper component for all authenticated users
+const ProtectedRoute = ({ user, onLogout, children }) => {
+  if (user) {
+    return <AdminLayout user={user} onLogout={onLogout}>{children}</AdminLayout>;
+  }
+  return <Navigate to="/login" replace />;
+};
+
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null); 
   const [loading, setLoading] = useState(true);
 
-  // Check if user is already logged in
   useEffect(() => {
     const checkAuth = () => {
-      const token = localStorage.getItem('adminToken');
-      const user = localStorage.getItem('adminUser');
+      const userString = localStorage.getItem('adminUser');
       
-      if (token && user) {
-        setIsAuthenticated(true);
+      if (userString) {
+        setCurrentUser(JSON.parse(userString));
       }
       setLoading(false);
     };
-
     checkAuth();
   }, []);
 
+  const isAuthenticated = !!currentUser;
+
   const handleLogin = (userData) => {
-    setIsAuthenticated(true);
+    setCurrentUser(userData);
     localStorage.setItem('adminUser', JSON.stringify(userData));
-    localStorage.setItem('adminToken', 'mock-token-here'); // Cybersecurity team will replace
+    localStorage.setItem('adminToken', 'mock-token-here');
   };
 
   const handleLogout = () => {
-    setIsAuthenticated(false);
+    setCurrentUser(null);
     localStorage.removeItem('adminUser');
     localStorage.removeItem('adminToken');
   };
@@ -58,7 +74,7 @@ export default function App() {
   return (
     <Router>
       <Routes>
-        {/* Login Route - Always accessible */}
+        {/* Login Route */}
         <Route 
           path="/login" 
           element={
@@ -68,62 +84,62 @@ export default function App() {
           } 
         />
         
-        {/* Protected Routes - Only accessible when authenticated */}
-        <Route 
-          path="/dashboard" 
-          element={
-            isAuthenticated ? 
-            <AdminLayout onLogout={handleLogout}><Dashboard /></AdminLayout> : 
-            <Navigate to="/login" replace />
-          } 
-        />
-        
+        {/* --- ⬇️ *** THIS IS THE FIX *** ⬇️ ---
+          We use a new 'AdminRoute' component for the /users path.
+          Only users with role_name 'admin' can access this.
+        */}
         <Route 
           path="/users" 
           element={
-            isAuthenticated ? 
-            <AdminLayout onLogout={handleLogout}><Users /></AdminLayout> : 
-            <Navigate to="/login" replace />
+            <AdminRoute user={currentUser} onLogout={handleLogout}>
+              <Users />
+            </AdminRoute>
           } 
         />
         
+        {/* --- All other routes are normal ProtectedRoutes --- */}
+        <Route 
+          path="/dashboard" 
+          element={
+            <ProtectedRoute user={currentUser} onLogout={handleLogout}>
+              <Dashboard />
+            </ProtectedRoute>
+          } 
+        />
         <Route 
           path="/flags" 
           element={
-            isAuthenticated ? 
-            <AdminLayout onLogout={handleLogout}><Flags /></AdminLayout> : 
-            <Navigate to="/login" replace />
+            <ProtectedRoute user={currentUser} onLogout={handleLogout}>
+              <Flags />
+            </ProtectedRoute>
           } 
         />
-        
         <Route 
           path="/heatmap" 
           element={
-            isAuthenticated ? 
-            <AdminLayout onLogout={handleLogout}><Heatmap /></AdminLayout> : 
-            <Navigate to="/login" replace />
+            <ProtectedRoute user={currentUser} onLogout={handleLogout}>
+              <Heatmap />
+            </ProtectedRoute>
           } 
         />
-        
         <Route 
           path="/iot" 
           element={
-            isAuthenticated ? 
-            <AdminLayout onLogout={handleLogout}><IoT /></AdminLayout> : 
-            <Navigate to="/login" replace />
+            <ProtectedRoute user={currentUser} onLogout={handleLogout}>
+              <IoT />
+            </ProtectedRoute>
           } 
         />
-        
         <Route 
           path="/iot-analytics" 
           element={
-            isAuthenticated ? 
-            <AdminLayout onLogout={handleLogout}><IotAnalytics /></AdminLayout> : 
-            <Navigate to="/login" replace />
+            <ProtectedRoute user={currentUser} onLogout={handleLogout}>
+              <IotAnalytics />
+            </ProtectedRoute>
           } 
         />
         
-        {/* Redirect root to login or dashboard */}
+        {/* Redirects */}
         <Route 
           path="/" 
           element={
@@ -132,8 +148,6 @@ export default function App() {
             <Navigate to="/login" replace />
           } 
         />
-        
-        {/* Catch all route - redirect to login */}
         <Route 
           path="*" 
           element={

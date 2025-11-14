@@ -9,16 +9,31 @@ import MapIcon from "@mui/icons-material/Map";
 import FlagIcon from "@mui/icons-material/Flag";
 import LogoutIcon from "@mui/icons-material/Logout";
 
-export default function Sidebar({ onLogout }) {
+// 1. 👈 --- Accept the 'user' prop ---
+export default function Sidebar({ user, onLogout }) {
   const location = useLocation();
 
-  const menuItems = [
+  // 2. 👈 --- Check the user's role ---
+  const isAdmin = user?.role_name === 'admin';
+
+  const allMenuItems = [
     { path: "/dashboard", label: "Dashboard", icon: <DashboardIcon /> },
-    { path: "/users", label: "User Directory", icon: <PeopleIcon /> },
+    // 3. 👈 --- Add an 'adminOnly' flag to this item ---
+    { path: "/users", label: "User Directory", icon: <PeopleIcon />, adminOnly: true },
     { path: "/flags", label: "Flagged Plants", icon: <FlagIcon /> },
     { path: "/heatmap", label: "Heatmap", icon: <MapIcon /> },
     { path: "/iot", label: "IoT Monitoring", icon: <SensorsIcon /> },
   ];
+
+  // 4. 👈 --- Filter the list based on the user's role ---
+  const menuItems = allMenuItems.filter(item => {
+    // If the item is not adminOnly, always show it
+    if (!item.adminOnly) {
+      return true;
+    }
+    // Otherwise, only show it if the user IS an admin
+    return isAdmin;
+  });
 
   return (
     <div className="sidebar">
@@ -28,6 +43,7 @@ export default function Sidebar({ onLogout }) {
       </div>
 
       <nav className="sidebar-nav">
+        {/* 5. 👈 --- This now renders the filtered list --- */}
         {menuItems.map((item) => (
           <Link
             key={item.path}
