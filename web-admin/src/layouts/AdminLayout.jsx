@@ -16,9 +16,8 @@ export default function AdminLayout({ children, user, onLogout }) {
 
       {/* RIGHT CONTENT AREA */}
       <div className="admin-main">
-        <Topbar onLogout={onLogout} />
-        <AdminAgentChat />
         <Topbar user={user} onLogout={onLogout} />
+        <AdminAgentChat />
         <div className="admin-content">{children}</div>
       </div>
     </div>
