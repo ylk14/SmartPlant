@@ -2,10 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
-// ❌ We no longer need useNavigation here for logout
-// import { useNavigation } from '@react-navigation/native';
 
-// ⬇️ *** IMPORT useAuth *** ⬇️
+// ⬇️ *** IMPORT useAuth (CRITICAL) *** ⬇️
 import { useAuth } from '../context/AuthContext';
 
 import AdminUsersScreen from '../screens/admin/AdminUsersScreen';
@@ -24,18 +22,13 @@ import AdminSupportAgent from '../screens/admin/components/AdminSupportAgent';
 
 const Drawer = createDrawerNavigator();
 
-// ❌ We no longer need this static profile
-// const ADMIN_PROFILE = { ... };
-// const ADMIN_INITIALS = ...;
-
+// (AdminDrawerContent is unchanged and correct from our last fix)
 function AdminDrawerContent(props) {
-  // ⬇️ *** GET THE REAL USER AND LOGOUT FUNCTION *** ⬇️
   const { user, logout } = useAuth();
   
-  // This is a "safe" fallback in case user is null
+  // Handle case where user might be null briefly
   const safeUser = user || { username: 'Admin', role_name: 'Admin', email: '' };
 
-  // Generate initials from the REAL user's name
   const adminInitials = safeUser.username
     .split(' ')
     .filter(Boolean)
@@ -43,9 +36,6 @@ function AdminDrawerContent(props) {
     .join('')
     .slice(0, 2) || 'AD';
 
-  // ⬇️ *** THIS IS THE FIX *** ⬇️
-  // The logout button now *only* calls the logout function from context.
-  // RootNavigator will handle the screen change.
   const handleLogout = () => {
     logout();
   };
@@ -56,7 +46,6 @@ function AdminDrawerContent(props) {
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{adminInitials}</Text>
         </View>
-        {/* ⬇️ *** Show the REAL user's info *** ⬇️ */}
         <Text style={styles.profileName}>{safeUser.username}</Text>
         <Text style={styles.profileRole}>{safeUser.role_name}</Text>
         <Text style={styles.profileEmail}>{safeUser.email}</Text>
@@ -79,39 +68,58 @@ function AdminDrawerContent(props) {
   );
 }
 
-// (The rest of the file is unchanged)
+// (List of screens with 'adminOnly' flag is unchanged and correct)
 const drawerScreens = [
   {
     name: ADMIN_ACTIVITY,
     label: 'Activity',
     component: AdminActivityScreen,
+    adminOnly: false, // Everyone with access can see this
   },
   {
     name: ADMIN_USERS,
     label: 'Users',
     component: AdminUsersScreen,
+    adminOnly: true, // 👈 *** SET TO TRUE ***
   },
   {
     name: ADMIN_FLAG_UNSURE,
     label: 'Flag Unsure',
     component: AdminFlagUnsureScreen,
+    adminOnly: false, // Everyone with access can see this
   },
   {
     name: ADMIN_HEATMAP,
     label: 'Heatmap',
     component: AdminHeatmapScreen,
+    adminOnly: false, // Everyone with access can see this
   },
   {
     name: ADMIN_IOT,
     label: 'IoT Monitoring',
     component: AdminIotScreen,
+    adminOnly: false, // Everyone with access can see this
   },
 ];
 
 export default function AdminNavigator() {
+  const { user } = useAuth();
+
+  // (Filtering logic is unchanged and correct)
+  const filteredScreens = drawerScreens.filter(screen => {
+    if (!screen.adminOnly) {
+      return true;
+    }
+    return user && user.role_id === 1;
+  });
+
   return (
     <Drawer.Navigator
-      initialRouteName={ADMIN_USERS}
+      // ⬇️ *** THIS IS THE FIX *** ⬇️
+      // We set the initial route to 'Activity', which all
+      // privileged users (admin + researcher) can see.
+      initialRouteName={ADMIN_ACTIVITY}
+      
       drawerContent={(props) => <AdminDrawerContent {...props} />}
       screenOptions={{
         headerStyle: { backgroundColor: '#FFFFFF' },
@@ -129,7 +137,8 @@ export default function AdminNavigator() {
           drawerLabelStyle: { fontSize: 15, fontWeight: '500', marginLeft: -12 },
       }}
     >
-        {drawerScreens.map((screen) => (
+        {/* We map over the correct 'filteredScreens' list */}
+        {filteredScreens.map((screen) => (
           <Drawer.Screen
             key={screen.name}
             name={screen.name}

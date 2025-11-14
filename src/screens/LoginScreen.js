@@ -13,15 +13,25 @@ import { Ionicons } from "@expo/vector-icons";
 import { loginUser, forgotPassword } from "../../services/api";
 import { useAuth } from "../context/AuthContext";
 
-// ⬇️ *** We don't need these routes anymore *** ⬇️
-// import { ADMIN_ROOT, ROOT_TABS } from '../navigation/routes';
+// ⬇️ *** THIS IS THE FIX (Part 1) *** ⬇️
+// Helper function to get the display name for the role
+function getRoleDisplayName(roleName) {
+  if (roleName === 'admin') {
+    return 'administrator';
+  }
+  if (roleName === 'researcher') {
+    return 'Plant Researcher';
+  }
+  // Default for 'public' or any other role
+  return 'user'; 
+}
 
 export default function LoginScreen({ navigation }) {
   const { login } = useAuth();
 
+  // (All your state variables are unchanged)
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  // (All other state variables are unchanged)
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -69,20 +79,21 @@ export default function LoginScreen({ navigation }) {
 
         if (response.success && response.user) {
           
-          // ⬇️ *** SIMPLIFIED LOGIN CALL *** ⬇️
-          // We no longer pass navigation or routes.
-          // We just set the user, and RootNavigator will do the rest.
+          // This call is now correct
           await login(
             response.user, 
             null, 
             rememberMe 
           );
           
+          // ⬇️ *** THIS IS THE FIX (Part 2) *** ⬇️
+          // We use our new helper function to get the correct name
+          const roleDisplayName = getRoleDisplayName(response.user.role_name);
+          
           Alert.alert(
             "Login Successful",
-            `Signed in as ${response.user.role_name === 'admin' ? 'administrator' : 'user'}.`
+            `Signed in as ${roleDisplayName}.`
           );
-          // ❌ No navigation.reset() here!
 
         } else {
           throw new Error(response.message || 'Login failed after MFA verification');
@@ -443,7 +454,7 @@ const styles = StyleSheet.create({
   },
   loginButton: {
     backgroundColor: "#78a756ff",
-    width: "1S00%",
+    width: "100%",
     paddingVertical: 15,
     borderRadius: 10,
     alignItems: "center",

@@ -117,24 +117,21 @@ function Tabs() {
 export default function RootNavigator() {
   const { user } = useAuth();
   
-  // This logic is correct, and we'll use it below
-  const isAdmin = user && user.role_id === 1;
+  // ⬇️ *** THIS IS THE FIX *** ⬇️
+  // We now check if the role is 'admin' (1) OR 'researcher' (2)
+  const isPrivilegedUser = user && (user.role_id === 1 || user.role_id === 2);
 
-  // We remove the console logs for the clean file
-  
   return (
     <Stack.Navigator 
       screenOptions={{ headerShown: false }}
-      // We no longer use initialRouteName
     >
       {user ? (
         // === USER IS LOGGED IN ===
-        // We now use the 'isAdmin' check to render one of TWO
-        // different stack groups. The *first screen* in each
-        // group will be the default.
-        isAdmin ? (
-          // --- ADMIN STACK GROUP ---
-          // 'ADMIN_ROOT' is first, so it's the default.
+        
+        // ⬇️ *** THIS IS THE FIX *** ⬇️
+        // We check against our new 'isPrivilegedUser' variable
+        isPrivilegedUser ? (
+          // --- ADMIN / RESEARCHER STACK GROUP ---
           <Stack.Group>
             <Stack.Screen name={ADMIN_ROOT} component={AdminNavigator} />
             <Stack.Screen name={ROOT_TABS} component={Tabs} />
@@ -155,7 +152,6 @@ export default function RootNavigator() {
           </Stack.Group>
         ) : (
           // --- PUBLIC USER STACK GROUP ---
-          // 'ROOT_TABS' is first, so it's the default.
           <Stack.Group>
             <Stack.Screen name={ROOT_TABS} component={Tabs} />
             <Stack.Screen name={ADMIN_ROOT} component={AdminNavigator} />
