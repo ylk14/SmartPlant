@@ -4,18 +4,20 @@ import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import "./AdminLayout.css";
 
-export default function AdminLayout({ children, onLogout }) {
+export default function AdminLayout({ children, user, onLogout }) {
   return (
     <div className="admin-layout">
       {/* LEFT SIDEBAR */}
-      <Sidebar onLogout={onLogout} />
+      {/* ⬇️ *** THIS IS THE FIX *** ⬇️
+        Pass the 'user' prop to the Sidebar.
+      */}
+      <Sidebar user={user} onLogout={onLogout} />
 
       {/* RIGHT CONTENT AREA */}
       <div className="admin-main">
-        <Topbar onLogout={onLogout} />
+        <Topbar user={user} onLogout={onLogout} />
         <div className="admin-content">{children}</div>
       </div>
     </div>
   );
 }
-
