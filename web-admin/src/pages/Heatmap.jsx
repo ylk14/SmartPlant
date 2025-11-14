@@ -266,21 +266,6 @@ select, input[type="search"] {
   margin: 0 0 8px 0;
 }
 
-.choose-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border-radius: 16px;
-  background: #E3ECF9;
-  border: none;
-  color: var(--blue);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  margin-bottom: 16px;
-}
-
 .selected-card {
   background: #F8FBFF;
   border-radius: 18px;
@@ -973,20 +958,11 @@ export default function Heatmap() {
             </div>
           </div>
 
-          {/* Endangered Species Controls Panel */}
-          <div className="controls-panel">
-            <div className="panel-header">
-              <div className="panel-title">Endangered Species Controls</div>
-              {!selectedObservation && (
-                <button 
-                  className="choose-button"
-                  onClick={() => setShowPlantModal(true)}
-                >
-                  <span>🌿</span>
-                  Choose a plant
-                </button>
-              )}
-            </div>
+            {/* Endangered Species Controls Panel */}
+            <div className="controls-panel">
+              <div className="panel-header">
+                <div className="panel-title">Endangered Species Controls</div>
+              </div>
 
             {selectedObservation ? (
               <div className="selected-card">
