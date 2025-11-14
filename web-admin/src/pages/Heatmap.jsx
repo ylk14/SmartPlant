@@ -613,6 +613,10 @@ const PlantSelectionModal = ({ isOpen, onClose, observations, onSelectPlant }) =
 };
 
 // ---------- Main component ----------
+const DEFAULT_CENTER = [1.55, 110.35];
+const DEFAULT_ZOOM = 8;
+const SINGLE_POINT_ZOOM = 10;
+
 export default function Heatmap() {
   const containerRef = useRef(null);
   const [rightWidth, setRightWidth] = useState(520);
@@ -629,6 +633,7 @@ export default function Heatmap() {
   const [sortDir, setSortDir] = useState("asc");
   const [selectedObservation, setSelectedObservation] = useState(null);
   const [showPlantModal, setShowPlantModal] = useState(false);
+  const mapRef = useRef(null);
 
   const syncSelectionWithRows = useCallback((nextRows) => {
     setSelectedObservation((prev) => {
@@ -759,6 +764,44 @@ export default function Heatmap() {
     }
   };
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (!selectedObservation) {
+      map.flyTo(DEFAULT_CENTER, DEFAULT_ZOOM, { animate: true, duration: 0.5 });
+      return;
+    }
+
+    const coords = rows
+      .filter(
+        (row) =>
+          row.species?.species_id === selectedObservation.species.species_id &&
+          Number.isFinite(Number(row.location_latitude)) &&
+          Number.isFinite(Number(row.location_longitude))
+      )
+      .map((row) => [Number(row.location_latitude), Number(row.location_longitude)]);
+
+    if (coords.length === 0) return;
+
+    if (coords.length === 1) {
+      const zoomTarget = Math.max(
+        SINGLE_POINT_ZOOM,
+        typeof map.getZoom === "function" ? map.getZoom() : SINGLE_POINT_ZOOM
+      );
+      map.flyTo(coords[0], zoomTarget, { animate: true, duration: 0.8 });
+      return;
+    }
+
+    const bounds = L.latLngBounds(coords);
+    const padded = bounds.pad(0.2);
+    if (typeof map.flyToBounds === "function") {
+      map.flyToBounds(padded, { animate: true, duration: 0.8 });
+    } else {
+      map.fitBounds(padded, { animate: true, duration: 0.8 });
+    }
+  }, [selectedObservation, rows]);
+
   // Filter and sort
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -836,11 +879,14 @@ export default function Heatmap() {
             </div>
           )}
 
-          <MapContainer
+            <MapContainer
             style={{ height: "100%", width: "100%" }}
-            center={[1.55, 110.35]}
-            zoom={8}
+              center={DEFAULT_CENTER}
+              zoom={DEFAULT_ZOOM}
             scrollWheelZoom
+              whenCreated={(mapInstance) => {
+                mapRef.current = mapInstance;
+              }}
           >
             <TileLayer
               attribution='&copy; OpenStreetMap contributors'
