@@ -1,12 +1,32 @@
 import axios from "axios";
 
-const API_BASE_URL =
-  (typeof import.meta !== "undefined" && import.meta.env?.VITE_BACKEND_URL) ||
-  "http://localhost:3000"; 
+const resolveBaseUrl = () => {
+  const envUrl =
+    (typeof import.meta !== "undefined" && import.meta.env?.VITE_BACKEND_URL) ||
+    "http://localhost:3000";
+
+  if (typeof envUrl !== "string") return "http://localhost:3000";
+  return envUrl.replace(/\/+$/, "") || "http://localhost:3000";
+};
 
 const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: resolveBaseUrl(),
   timeout: 10000,
+});
+
+apiClient.interceptors.request.use((config) => {
+  try {
+    if (typeof window !== "undefined" && window?.localStorage) {
+      const token = window.localStorage.getItem("adminToken");
+      if (token && !config.headers?.Authorization) {
+        config.headers = config.headers || {};
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
+  } catch (error) {
+    console.warn("[apiClient] Failed to attach auth token:", error);
+  }
+  return config;
 });
 
 export const fetchUsers = async () => {

@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from "react-leaf
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import "leaflet.heat";
-import api from "../utils/axios";
+import { fetchHeatmapObservations, updateObservationMask } from "../services/heatmap";
 
 // ---------- Embedded CSS ----------
 const css = `
@@ -644,27 +644,59 @@ export default function Heatmap() {
   const [selectedObservation, setSelectedObservation] = useState(null);
   const [showPlantModal, setShowPlantModal] = useState(false);
 
+  const syncSelectionWithRows = useCallback((nextRows) => {
+    setSelectedObservation((prev) => {
+      if (!prev) return prev;
+      return nextRows.find(
+        (row) => row.observation_id === prev.observation_id
+      ) || null;
+    });
+  }, []);
+
   // Load data
   useEffect(() => {
-    let mounted = true;
+    let isActive = true;
+
+    const applyRows = (nextRows) => {
+      if (!isActive) return;
+      setRows(nextRows);
+      syncSelectionWithRows(nextRows);
+    };
+
     (async () => {
       setLoading(true);
       setError("");
       try {
-        const res = await api.get("/admin/observations?scope=endangered+nearby");
-        const data = Array.isArray(res.data) ? res.data : [];
-        if (mounted) setRows(data.length ? data : MOCK);
-      } catch (e) {
-        if (mounted) {
-          setRows(MOCK);
-          setError("Showing mock data (API unavailable).");
+        const data = await fetchHeatmapObservations({
+          scope: "endangered+nearby",
+        });
+
+        if (!isActive) return;
+
+        if (data.length > 0) {
+          applyRows(data);
+        } else {
+          applyRows(MOCK);
+          setError("Heatmap API returned no observations. Showing mock data.");
         }
+      } catch (err) {
+        if (!isActive) return;
+        console.error("[Heatmap] failed to load observations", err);
+        applyRows(MOCK);
+        const message =
+          err?.response?.data?.message || err?.message || "API unavailable";
+        setError(`Showing mock data (${message}).`);
       } finally {
-        if (mounted) setLoading(false);
+        if (isActive) {
+          setLoading(false);
+        }
       }
     })();
-    return () => { mounted = false; };
-  }, []);
+
+    return () => {
+      isActive = false;
+    };
+  }, [syncSelectionWithRows]);
 
   // Drag handlers
   const onMouseDown = useCallback((e) => {
@@ -701,24 +733,38 @@ export default function Heatmap() {
 
   // Toggle mask function
   const toggleMask = async (obsId) => {
-    setRows(prev =>
-      prev.map(r =>
-        r.observation_id === obsId ? { ...r, is_masked: !r.is_masked } : r
+    const target = rows.find((row) => row.observation_id === obsId);
+    if (!target) return;
+
+    const nextValue = !target.is_masked;
+
+    setRows((prev) =>
+      prev.map((row) =>
+        row.observation_id === obsId ? { ...row, is_masked: nextValue } : row
       )
     );
-    
-    if (selectedObservation && selectedObservation.observation_id === obsId) {
-      setSelectedObservation(prev => ({ ...prev, is_masked: !prev.is_masked }));
-    }
+
+    setSelectedObservation((prev) =>
+      prev && prev.observation_id === obsId
+        ? { ...prev, is_masked: nextValue }
+        : prev
+    );
 
     try {
-      await api.patch(`/admin/observations/${obsId}/mask`, {});
-    } catch (e) {
-      setRows(prev =>
-        prev.map(r =>
-          r.observation_id === obsId ? { ...r, is_masked: !r.is_masked } : r
+      await updateObservationMask(obsId, nextValue);
+    } catch (err) {
+      console.error(`[Heatmap] failed to update mask for ${obsId}`, err);
+      setRows((prev) =>
+        prev.map((row) =>
+          row.observation_id === obsId ? { ...row, is_masked: !nextValue } : row
         )
       );
+      setSelectedObservation((prev) =>
+        prev && prev.observation_id === obsId
+          ? { ...prev, is_masked: !nextValue }
+          : prev
+      );
+      setError("Failed to update mask state. Changes reverted.");
     }
   };
 
