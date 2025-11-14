@@ -723,6 +723,11 @@ export default function Heatmap() {
     if (!target) return;
 
     const nextValue = !target.is_masked;
+    const actionLabel = nextValue ? "mask" : "unmask";
+    const confirmed = window.confirm(
+      `Are you sure you want to ${actionLabel} ${target.species.common_name} (${target.observation_id}) for end users?`
+    );
+    if (!confirmed) return;
 
     setRows((prev) =>
       prev.map((row) =>
