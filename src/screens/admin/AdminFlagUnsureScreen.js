@@ -1,72 +1,106 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { ADMIN_FLAG_REVIEW } from '../../navigation/routes';
+import api from '../../../services/api';
 
-const MOCK_FLAGGED = [
-  {
-    observation_id: 'OBS-3011',
-    plant_name: 'Unknown Nepenthes',
-    confidence: 0.42,
-    user: 'field.scout',
-    submitted_at: '2025-10-12T10:12:00Z',
-    location: 'Gunung Mulu, Sarawak',
-    photo: require('../../../assets/pitcher.jpg'),
-    is_endangered: true,
-  },
-  {
-    observation_id: 'OBS-2987',
-    plant_name: 'Rafflesia ?',
-    confidence: 0.35,
-    user: 'flora.lens',
-    submitted_at: '2025-10-09T08:45:00Z',
-    location: 'Mount Kinabalu, Sabah',
-    photo: require('../../../assets/rafflesia.jpg'),
-    is_endangered: true,
-  },
-  {
-    observation_id: 'OBS-2979',
-    plant_name: 'Pitcher Plant Candidate',
-    confidence: 0.28,
-    user: 'botany.lee',
-    submitted_at: '2025-10-08T16:20:00Z',
-    location: 'Fraser\'s Hill, Pahang',
-    photo: require('../../../assets/pitcher.jpg'),
-    is_endangered: true,
-  },
-];
-
-const toPercent = (score) => `${Math.round(score * 100)}%`;
+const toPercent = (score) => `${Math.round((Number(score) || 0) * 100)}%`;
 
 export default function AdminFlagUnsureScreen() {
   const navigation = useNavigation();
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadFlagged = useCallback(async () => {
+    setLoading(true);
+    try {
+      const pageSize = 200;
+      let page = 1;
+      let all = [];
+
+      while (true) {
+        const resp = await api.get('/api/admin/observations', {
+          params: {
+            status: 'pending',
+            // we will fix auto_flagged in the next section
+            page,
+            page_size: pageSize,
+          },
+        });
+
+        const batch = Array.isArray(resp.data?.data) ? resp.data.data : [];
+        all = all.concat(batch);
+
+        const nextPage = resp.data?.next_page;
+        const haveMore = nextPage ? true : batch.length === pageSize;
+
+        if (!haveMore) break;
+        page = nextPage || (page + 1);
+      }
+
+      setRows(all);
+    } catch (e) {
+      console.log('[FlagUnsure] fetch error', e?.response?.status, e?.response?.data);
+      Alert.alert('Error', 'Failed to load flagged observations');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+
+      // wrap to respect the isActive flag, in case the screen blurs mid-request
+      (async () => {
+        if (!isActive) return;
+        await loadFlagged();
+      })();
+
+      return () => {
+        isActive = false;
+      };
+    }, [loadFlagged])
+  );
+        
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator size="large" />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
       <Text style={styles.headerTitle}>Flag Unsure Queue</Text>
       <Text style={styles.headerSubtitle}>
-        AI low-confidence identifications awaiting manual review.
+        All pending plant identifications awaiting manual review.
       </Text>
 
       <View style={styles.table}>
         <View style={[styles.row, styles.headerRow]}>
           <Text style={[styles.cellWide, styles.headerText]}>Plant</Text>
-            <Text style={[styles.cell, styles.headerText, styles.cellScoreHeader]}>Score</Text>
-            <Text style={[styles.cellAction, styles.headerText, styles.cellActionHeader]}>Action</Text>
+          <Text style={[styles.cell, styles.headerText, styles.cellScoreHeader]}>Score</Text>
+          <Text style={[styles.cellAction, styles.headerText, styles.cellActionHeader]}>Action</Text>
         </View>
 
         <FlatList
-          data={MOCK_FLAGGED}
-          keyExtractor={(item) => item.observation_id}
+          data={rows}
+          keyExtractor={(item) => String(item.observation_id)}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           renderItem={({ item }) => (
             <View style={styles.row}>
               <View style={styles.cellWide}>
-                <Text style={styles.plantText}>{item.plant_name}</Text>
-                <Text style={styles.metaText}>{item.location}</Text>
+                <Text style={styles.plantText}>{item.plant_name || 'Unknown'}</Text>
+                <Text style={styles.metaText}>
+                  {new Date(item.submitted_at).toLocaleString()}
+                </Text>
               </View>
-              <Text style={[styles.cell, styles.cellScoreValue]}>{toPercent(item.confidence)}</Text>
+              <Text style={[styles.cell, styles.cellScoreValue]}>
+                {toPercent(item.confidence)}
+              </Text>
               <View style={styles.cellAction}>
                 <TouchableOpacity
                   style={styles.reviewButton}

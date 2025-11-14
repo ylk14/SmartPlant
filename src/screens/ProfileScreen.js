@@ -1,14 +1,15 @@
-// src/screens/ProfileScreen.js
 import React, { useCallback, useState } from 'react';
 import { View, Text, Image, StyleSheet, FlatList, Pressable, ActivityIndicator, ScrollView, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
-import { fetchUserProfile, fetchUserPosts } from '../../services/api';
+// ⬇️ *** STEP 1: Import useAuth *** ⬇️
+import { useAuth } from '../context/AuthContext';
+import { fetchUserPosts } from '../../services/api';
 
-// This is the hardcoded ID we discussed.
-const TEMP_USER_ID = '1'; 
+// ⬇️ *** STEP 2: REMOVE THE BYPASS *** ⬇️
+// const TEMP_USER_ID = '1'; // No longer needed!
 
 // (fmt function is unchanged)
 function fmt(iso) {
@@ -30,15 +31,20 @@ export default function ProfileScreen() {
   const nav = useNavigation();
   const insets = useSafeAreaInsets();
 
-  const [user, setUser] = useState(null);
+  // ⬇️ *** STEP 3: Get the REAL user and logout function from context *** ⬇️
+  const { user, logout } = useAuth();
+
+  // ⬇️ *** We no longer need local 'user' state, context handles it! *** ⬇️
+  // const [user, setUser] = useState(null);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadProfileData = (userId) => {
-    if (!userId) {
-      setError('No User ID provided.');
+  // ⬇️ *** STEP 4: Simplify data loading *** ⬇️
+  const loadProfileData = () => {
+    // If no user from context, do nothing.
+    if (!user) {
       setLoading(false);
       return;
     }
@@ -46,12 +52,12 @@ export default function ProfileScreen() {
     setError(null);
     setLoading(true);
     
-    Promise.all([
-      fetchUserProfile(userId),
-      fetchUserPosts(userId)
-    ])
-    .then(([profileData, postsData]) => {
-      setUser(profileData);
+    // We *already have* the user profile from context,
+    // so we ONLY need to fetch their posts!
+    
+    // We pass the REAL user's ID now
+    fetchUserPosts(user.user_id)
+    .then((postsData) => {
       setPosts(postsData || []);
     })
     .catch((err) => {
@@ -64,40 +70,38 @@ export default function ProfileScreen() {
     });
   };
 
+  // ⬇️ *** STEP 5: Update the 'useFocusEffect' hook *** ⬇️
   useFocusEffect(
     useCallback(() => {
-      loadProfileData(TEMP_USER_ID);
-    }, [])
+      loadProfileData();
+    }, [user]) // Re-run this effect if the 'user' object from context changes
   );
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadProfileData(TEMP_USER_ID);
+    loadProfileData();
   };
 
-  const renderItem = ({ item }) => {
-    // Use the real 'photo_url' from your database query
-    const imgSource = item.photo_url ? { uri: item.photo_url } : null;
-
-  const openObservation = () =>
+  // ⬇️ *** STEP 6: Update the 'openObservation' function *** ⬇️
+  // (This is the fix we made earlier, just keeping it)
+  const openObservation = (item) =>
     nav.navigate('ObservationDetail', {
-      // Map database names to the names ObservationDetailScreen expects
-      photoUri: item.photo_url,          // <--- Fix for the image
-      createdAt: item.created_at,        // <--- Fix for the date
-      speciesName: item.species_name,    // <--- Fix for the main title
-      
-      // Pass all other data the detail screen might want
+      photoUri: item.photo_url,
+      createdAt: item.created_at,
+      speciesName: item.species_name,
       commonName: item.common_name,
       scientificName: item.scientific_name,
       latitude: item.latitude,
       longitude: item.longitude,
       notes: item.notes,
       uploadedBy: item.uploadedBy,
-      
-      // You can also pass the IDs
       observation_id: item.observation_id,
       user_id: item.user_id,
     });
+
+
+  const renderItem = ({ item }) => {
+    const imgSource = item.photo_url ? { uri: item.photo_url } : null;
 
     const initials = (item.uploadedBy || user?.username || '?')
       .slice(0, 2)
@@ -107,7 +111,7 @@ export default function ProfileScreen() {
       <View style={s.post}>
         <Pressable
           style={s.imageWrap}
-          onPress={openObservation}
+          onPress={() => openObservation(item)} // Pass item
           android_ripple={{ color: '#00000018' }}
         >
           {imgSource ? (
@@ -132,15 +136,14 @@ export default function ProfileScreen() {
             </Text>
             <Pressable
               style={s.viewButton}
-              onPress={openObservation}
+              onPress={() => openObservation(item)} // Pass item
               android_ripple={{ color: '#00000010', borderless: false }}
             >
               <Text style={s.viewButtonText}>View</Text>
             </Pressable>
           </View>
           <Text style={s.postMeta}>
-            {item.latitude ? item.latitude: 'Location not recorded'}
-            , {item.latitude ? item.latitude: 'Location not recorded'}
+            {item.location_name ? item.location_name : 'Location not recorded'}
           </Text>
           <Text style={s.postTimestamp}>{fmt(item.created_at)}</Text>
         </View>
@@ -160,37 +163,32 @@ export default function ProfileScreen() {
     <SafeAreaView style={s.container} edges={['top', 'left', 'right']}>
       {/* Header */}
       <View style={[s.header, { paddingTop: insets.top + 12 }]}>
+        
+        {/* ⬇️ *** STEP 7: This section now just works! *** ⬇️ */}
+        {/* It automatically uses the 'user' from the context */}
         {user ? (
           <>
             <View style={s.headerRow}>
               <View style={s.profileInfo}>
-                
-                {/* ⬇️ *** THIS IS THE FIX *** ⬇️ */}
-                {/* We no longer require() a local asset.
-                  If 'user.avatar' (the URL) exists, we show it.
-                  If not, we show 'null', and the 'backgroundColor' from
-                  s.avatar will just show a grey circle.
-                */}
                 <Image 
                   source={user.avatar ? { uri: user.avatar } : null} 
                   style={s.avatar} 
                 />
                 <View>
                   <Text style={s.name}>{user.username}</Text>
-                  {/* Use the real 'uid' from the database */}
                   <Text style={s.uid}>UID: {user.user_id}</Text>
                 </View>
-                
               </View>
-              {/*
+              
+              {/* ⬇️ *** BONUS: Replaced Settings with a working Logout button *** ⬇️ */}
               <Pressable
                 style={s.settingsButton}
-                onPress={() => nav.navigate('Settings')}
+                onPress={logout} // This logs the user out
                 accessibilityRole="button"
               >
-                <Ionicons name="settings-outline" size={22} color="#1F2A37" />
+                {/* Changed icon to a red log-out icon */}
+                <Ionicons name="log-out-outline" size={22} color="#B91C1C" />
               </Pressable>
-              */}
             </View>
 
             <View style={s.statsContainer}>
@@ -275,7 +273,7 @@ const s = StyleSheet.create({
   settingsButton: {
     padding: 10,
     borderRadius: 999,
-    backgroundColor: '#E5ECF3',
+    backgroundColor: '#FEE2E2', // Changed color for logout
   },
   name: { fontSize: 20, fontWeight: 'bold', color: '#244332' },
   uid: { color: '#2E6A4C', marginTop: 2, opacity: 0.9 },
