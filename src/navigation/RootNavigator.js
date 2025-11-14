@@ -1,12 +1,12 @@
 // src/navigation/RootNavigator.js
-import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ROOT_TABS, TAB_HOME, TAB_IDENTIFY, ADMIN_ROOT, ADMIN_ENDANGERED, ADMIN_USER_DETAIL, ADMIN_IOT, ADMIN_IOT_DETAIL, ADMIN_IOT_ANALYTICS, ADMIN_FLAG_REVIEW, ADMIN_AGENT_CHAT } from './routes';
+import { useAuth } from '../context/AuthContext'; 
 
-// screens
+// --- Import all your screens (unchanged) ---
 import HomeScreen from '../screens/HomeScreen';
 import SearchScreen from '../screens/SearchScreen';
 import IdentifyScreen from '../screens/IdentifyScreen';
@@ -34,11 +34,12 @@ import AdminAgentChatScreen from '../screens/admin/AdminAgentChatScreen';
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
-/** --- Layout constants (tweak freely, no logic impact) --- */
+// (SCAN_SIZE constant fix from your last turn)
 const BAR_HEIGHT = 96;
 const SCAN_SIZE = 72;
 
 function Tabs() {
+  // (Tabs function is unchanged)
   return (
     <Tab.Navigator
       initialRouteName={TAB_HOME}
@@ -61,7 +62,6 @@ function Tabs() {
           ),
         }}
       />
-
       <Tab.Screen
         name="Search"
         component={SearchScreen}
@@ -71,8 +71,6 @@ function Tabs() {
           ),
         }}
       />
-
-      {/* BIG center Scan button that overlaps the bar */}
       <Tab.Screen
         name={TAB_IDENTIFY}
         component={IdentifyScreen}
@@ -94,7 +92,6 @@ function Tabs() {
           ),
         }}
       />
-
       <Tab.Screen
         name="Heatmap"
         component={HeatmapScreen}
@@ -104,7 +101,6 @@ function Tabs() {
           ),
         }}
       />
-
       <Tab.Screen
         name="Profile"
         component={ProfileScreen}
@@ -119,100 +115,76 @@ function Tabs() {
 }
 
 export default function RootNavigator() {
+  const { user } = useAuth();
+  
+  // ⬇️ *** THIS IS THE FIX *** ⬇️
+  // We now check if the role is 'admin' (1) OR 'researcher' (2)
+  const isPrivilegedUser = user && (user.role_id === 1 || user.role_id === 2);
+
   return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName="Welcome" screenOptions={{ headerShown: false }}>
-        {/* --- Auth flow --- */}
-        <Stack.Screen name="Welcome" component={WelcomeScreen} />
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="SignUp" component={SignUpScreen} />
-        <Stack.Screen name="MFA" component={MFAScreen} />
-
-        {/* --- App tabs (ONLY place where Home lives) --- */}
-        <Stack.Screen name={ROOT_TABS} component={Tabs} />
-        <Stack.Screen
-          name={ADMIN_ROOT}
-          component={AdminNavigator}
-          options={{
-            headerShown: false,
-            presentation: 'containedModal',
-          }}
-        />
-        <Stack.Screen
-          name={ADMIN_ENDANGERED}
-          component={AdminEndangeredListScreen}
-          options={{
-            headerShown: true,
-            headerTitle: 'Endangered Species',
-          }}
-        />
-      <Stack.Screen
-        name={ADMIN_IOT}
-        component={AdminIotScreen}
-        options={{
-          headerShown: true,
-          headerTitle: 'IoT Monitoring',
-        }}
-      />
-      <Stack.Screen
-        name={ADMIN_IOT_DETAIL}
-        component={AdminIotDetailScreen}
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name={ADMIN_IOT_ANALYTICS}
-        component={AdminIotAnalyticsScreen}
-        options={{
-          headerShown: false,
-          presentation: 'card',
-        }}
-      />
-        <Stack.Screen
-          name={ADMIN_FLAG_REVIEW}
-          component={AdminFlagReviewScreen}
-          options={{
-            headerShown: true,
-            headerTitle: 'Review Observation',
-          }}
-        />
-        <Stack.Screen
-          name={ADMIN_USER_DETAIL}
-          component={AdminUserDetailScreen}
-          options={{
-            headerShown: true,
-            headerTitle: 'User Details',
-          }}
-        />
-          <Stack.Screen
-            name="Settings"
-            component={SettingsScreen}
-            options={{
-              headerShown: true,
-              headerTitle: 'Settings',
-            }}
-          />
-          <Stack.Screen
-            name={ADMIN_AGENT_CHAT}
-            component={AdminAgentChatScreen}
-            options={{
-              headerShown: true,
-              headerTitle: 'Support Agent',
-            }}
-          />
-
-        {/* --- Flow screens on top of tabs --- */}
-        <Stack.Screen name="Camera" component={CameraScreen} />
-        <Stack.Screen name="Preview" component={PreviewScreen} />
-        <Stack.Screen name="Result" component={ResultScreen} />
-        <Stack.Screen name="FlagUnsure" component={FlagUnsureScreen} />
-        <Stack.Screen name="ObservationDetail" component={ObservationDetailScreen} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <Stack.Navigator 
+      screenOptions={{ headerShown: false }}
+    >
+      {user ? (
+        // === USER IS LOGGED IN ===
+        
+        // ⬇️ *** THIS IS THE FIX *** ⬇️
+        // We check against our new 'isPrivilegedUser' variable
+        isPrivilegedUser ? (
+          // --- ADMIN / RESEARCHER STACK GROUP ---
+          <Stack.Group>
+            <Stack.Screen name={ADMIN_ROOT} component={AdminNavigator} />
+            <Stack.Screen name={ROOT_TABS} component={Tabs} />
+            {/* ... all other screens ... */}
+            <Stack.Screen name={ADMIN_ENDANGERED} component={AdminEndangeredListScreen} />
+            <Stack.Screen name={ADMIN_IOT} component={AdminIotScreen} />
+            <Stack.Screen name={ADMIN_IOT_DETAIL} component={AdminIotDetailScreen} />
+            <Stack.Screen name={ADMIN_IOT_ANALYTICS} component={AdminIotAnalyticsScreen} />
+            <Stack.Screen name={ADMIN_FLAG_REVIEW} component={AdminFlagReviewScreen} />
+            <Stack.Screen name={ADMIN_USER_DETAIL} component={AdminUserDetailScreen} />
+            <Stack.Screen name="Settings" component={SettingsScreen} />
+            <Stack.Screen name={ADMIN_AGENT_CHAT} component={AdminAgentChatScreen} />
+            <Stack.Screen name="Camera" component={CameraScreen} />
+            <Stack.Screen name="Preview" component={PreviewScreen} />
+            <Stack.Screen name="Result" component={ResultScreen} />
+            <Stack.Screen name="FlagUnsure" component={FlagUnsureScreen} />
+            <Stack.Screen name="ObservationDetail" component={ObservationDetailScreen} />
+          </Stack.Group>
+        ) : (
+          // --- PUBLIC USER STACK GROUP ---
+          <Stack.Group>
+            <Stack.Screen name={ROOT_TABS} component={Tabs} />
+            <Stack.Screen name={ADMIN_ROOT} component={AdminNavigator} />
+            {/* ... all other screens ... */}
+            <Stack.Screen name={ADMIN_ENDANGERED} component={AdminEndangeredListScreen} />
+            <Stack.Screen name={ADMIN_IOT} component={AdminIotScreen} />
+            <Stack.Screen name={ADMIN_IOT_DETAIL} component={AdminIotDetailScreen} />
+            <Stack.Screen name={ADMIN_IOT_ANALYTICS} component={AdminIotAnalyticsScreen} />
+            <Stack.Screen name={ADMIN_FLAG_REVIEW} component={AdminFlagReviewScreen} />
+            <Stack.Screen name={ADMIN_USER_DETAIL} component={AdminUserDetailScreen} />
+            <Stack.Screen name="Settings" component={SettingsScreen} />
+            <Stack.Screen name={ADMIN_AGENT_CHAT} component={AdminAgentChatScreen} />
+            <Stack.Screen name="Camera" component={CameraScreen} />
+            <Stack.Screen name="Preview" component={PreviewScreen} />
+            <Stack.Screen name="Result" component={ResultScreen} />
+            <Stack.Screen name="FlagUnsure" component={FlagUnsureScreen} />
+            <Stack.Screen name="ObservationDetail" component={ObservationDetailScreen} />
+          </Stack.Group>
+        )
+      ) : (
+        // === NO USER LOGGED IN ===
+        <Stack.Group>
+          <Stack.Screen name="Welcome" component={WelcomeScreen} />
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="SignUp" component={SignUpScreen} />
+          <Stack.Screen name="MFA" component={MFAScreen} />
+        </Stack.Group>
+      )}
+    </Stack.Navigator>
   );
 }
 
+// (Styles are correct and unchanged)
 const styles = StyleSheet.create({
   tabBar: {
     height: 100,
