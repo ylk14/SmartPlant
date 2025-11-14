@@ -2,6 +2,7 @@
 import React from "react";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
+import AdminAgentChat from '../components/AdminAgentChat';
 import "./AdminLayout.css";
 
 export default function AdminLayout({ children, onLogout }) {
@@ -13,6 +14,7 @@ export default function AdminLayout({ children, onLogout }) {
       {/* RIGHT CONTENT AREA */}
       <div className="admin-main">
         <Topbar onLogout={onLogout} />
+        <AdminAgentChat />
         <div className="admin-content">{children}</div>
       </div>
     </div>
