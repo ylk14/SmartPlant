@@ -2,7 +2,11 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+// ❌ We no longer need useNavigation here for logout
+// import { useNavigation } from '@react-navigation/native';
+
+// ⬇️ *** IMPORT useAuth *** ⬇️
+import { useAuth } from '../context/AuthContext';
 
 import AdminUsersScreen from '../screens/admin/AdminUsersScreen';
 import AdminFlagUnsureScreen from '../screens/admin/AdminFlagUnsureScreen';
@@ -20,38 +24,43 @@ import AdminSupportAgent from '../screens/admin/components/AdminSupportAgent';
 
 const Drawer = createDrawerNavigator();
 
-const ADMIN_PROFILE = {
-  name: 'Flora Administrator',
-  role: 'Super Admin',
-  email: 'flora.admin@smartplant.dev',
-};
-
-const ADMIN_INITIALS = ADMIN_PROFILE.name
-  .split(' ')
-  .filter(Boolean)
-  .map((part) => part[0]?.toUpperCase() ?? '')
-  .join('')
-  .slice(0, 2) || 'AD';
+// ❌ We no longer need this static profile
+// const ADMIN_PROFILE = { ... };
+// const ADMIN_INITIALS = ...;
 
 function AdminDrawerContent(props) {
-  const navigation = useNavigation();
+  // ⬇️ *** GET THE REAL USER AND LOGOUT FUNCTION *** ⬇️
+  const { user, logout } = useAuth();
+  
+  // This is a "safe" fallback in case user is null
+  const safeUser = user || { username: 'Admin', role_name: 'Admin', email: '' };
 
+  // Generate initials from the REAL user's name
+  const adminInitials = safeUser.username
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('')
+    .slice(0, 2) || 'AD';
+
+  // ⬇️ *** THIS IS THE FIX *** ⬇️
+  // The logout button now *only* calls the logout function from context.
+  // RootNavigator will handle the screen change.
   const handleLogout = () => {
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Login' }],
-    });
+    logout();
   };
 
   return (
     <DrawerContentScrollView {...props} contentContainerStyle={styles.drawerScrollContainer}>
       <View style={styles.profileContainer}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{ADMIN_INITIALS}</Text>
+          <Text style={styles.avatarText}>{adminInitials}</Text>
         </View>
-        <Text style={styles.profileName}>{ADMIN_PROFILE.name}</Text>
-        <Text style={styles.profileRole}>{ADMIN_PROFILE.role}</Text>
-        <Text style={styles.profileEmail}>{ADMIN_PROFILE.email}</Text>
+        {/* ⬇️ *** Show the REAL user's info *** ⬇️ */}
+        <Text style={styles.profileName}>{safeUser.username}</Text>
+        <Text style={styles.profileRole}>{safeUser.role_name}</Text>
+        <Text style={styles.profileEmail}>{safeUser.email}</Text>
+        
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.7} accessibilityRole="button">
           <Ionicons name="log-out-outline" size={18} color="#1E2D3D" />
           <Text style={styles.logoutText}>Logout</Text>
@@ -64,12 +73,13 @@ function AdminDrawerContent(props) {
 
       <View style={styles.drawerFooter}>
         <Text style={styles.footerText}>SmartPlant Admin Console</Text>
-        <Text style={styles.footerSubtext}>Mock data - backend coming soon</Text>
+        <Text style={styles.footerSubtext}>Version 1.0.0</Text>
       </View>
     </DrawerContentScrollView>
   );
 }
 
+// (The rest of the file is unchanged)
 const drawerScreens = [
   {
     name: ADMIN_ACTIVITY,
@@ -139,6 +149,7 @@ export default function AdminNavigator() {
   );
 }
 
+// (Styles are unchanged)
 const styles = StyleSheet.create({
   drawerScrollContainer: {
     flexGrow: 1,
