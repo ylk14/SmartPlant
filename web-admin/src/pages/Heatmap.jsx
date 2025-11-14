@@ -824,24 +824,6 @@ export default function Heatmap() {
       <div ref={containerRef} className="admin-heatwrap">
         {/* LEFT: Map */}
         <div className="leftPane" style={{ flexBasis: leftFlexBasis }}>
-          {/* Map mode toggle */}
-          <div className="mapTopBar">
-            <button
-              className={`btn small ${mode === "heatmap" ? "primary" : ""}`}
-              onClick={() => setMode("heatmap")}
-              disabled={!selectedObservation}
-            >
-              Heatmap
-            </button>
-            <button
-              className={`btn small ${mode === "markers" ? "primary" : ""}`}
-              onClick={() => setMode("markers")}
-              disabled={!selectedObservation}
-            >
-              Markers
-            </button>
-          </div>
-
           {/* Visibility badge */}
           {selectedObservation && (
             <div className={`visibility-badge ${!visibleForUser ? 'blocked' : ''}`}>
