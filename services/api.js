@@ -214,12 +214,27 @@ export const fetchDeviceHistory = async (deviceId, rangeKey) => {
   }
 };
 
-export const fetchSpeciesList = async () => {
+export const fetchSpecies = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/species/all`);
-    return await handleResponse(response);
+    const response = await fetch(`${API_BASE_URL}/species`);
+    const json = await response.json();
+
+    // If backend returns { success, data }
+    return json.data;    
+
   } catch (error) {
-    console.error("Error fetching species list:", error);
+    console.error("Error fetching species:", error);
+    throw error;
+  }
+};
+
+export const fetchObservationsBySpecies = async (speciesId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/observations/species/${speciesId}`);
+    const json = await response.json();
+    return json;   // must return { success, data: [...] }
+  } catch (error) {
+    console.error("Error fetching observations by species:", error);
     throw error;
   }
 };
