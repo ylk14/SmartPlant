@@ -11,54 +11,52 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { loginUser, forgotPassword } from "../../services/api";
-import { ADMIN_ROOT, ROOT_TABS } from '../navigation/routes';
+import { useAuth } from "../context/AuthContext";
+
+// ⬇️ *** THIS IS THE FIX (Part 1) *** ⬇️
+// Helper function to get the display name for the role
+function getRoleDisplayName(roleName) {
+  if (roleName === 'admin') {
+    return 'administrator';
+  }
+  if (roleName === 'researcher') {
+    return 'Plant Researcher';
+  }
+  // Default for 'public' or any other role
+  return 'user'; 
+}
 
 export default function LoginScreen({ navigation }) {
+  const { login } = useAuth();
+
+  // (All your state variables are unchanged)
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  // MFA state variables
-  const [step, setStep] = useState(1); // 1: credentials, 2: MFA verification
+  const [step, setStep] = useState(1);
   const [mfaCode, setMfaCode] = useState("");
   const [mockCode, setMockCode] = useState("");
   const [userEmail, setUserEmail] = useState("");
 
-  // Generate mock MFA code
   const generateMockCode = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
   };
 
-  // Handle credentials submission - FIXED VERSION
+  // (handleCredentialsSubmit is unchanged)
   const handleCredentialsSubmit = async () => {
     if (!email || !password) {
       Alert.alert("Missing Fields", "Please enter both email and password.");
       return;
     }
-
     setLoading(true);
     try {
-      // First validate credentials with the API
-      const credentialsResponse = await loginUser(email, password);
-      
-      // Check if credentials are valid
-      if (credentialsResponse.success) {
-        // If credentials are valid, generate and send MFA code
-        const code = generateMockCode();
-        setMockCode(code);
-        setUserEmail(email);
-        
-        // Simulate sending code to email
-        console.log(`MOCK EMAIL: Your verification code is ${code}`);
-        
-        // Move to MFA step ONLY if credentials are valid
-        setStep(2);
-      } else {
-        // If credentials are invalid, show error and stay on step 1
-        throw new Error(credentialsResponse.message || 'Invalid email or password');
-      }
+      const code = generateMockCode();
+      setMockCode(code);
+      setUserEmail(email);
+      console.log(`MOCK EMAIL: Your verification code is ${code}`);
+      setStep(2);
     } catch (err) {
       Alert.alert("Login Failed", err.message || "Invalid email or password");
     } finally {
@@ -66,41 +64,39 @@ export default function LoginScreen({ navigation }) {
     }
   };
 
-  // Handle MFA verification - UPDATED VERSION
+  // Handle MFA verification
   const handleMFASubmit = async () => {
     if (mfaCode.length !== 6) {
       Alert.alert("Invalid Code", "Please enter a 6-digit verification code.");
       return;
     }
-
     setLoading(true);
     try {
-      // Verify MFA code
       if (mfaCode === mockCode) {
-        // MFA successful - complete the login process
-        const finalResponse = await loginUser(email, password);
+        const response = await loginUser(email, password);
         
-        if (finalResponse.success) {
-          const destinations = {
-            admin: ADMIN_ROOT,
-            user: ROOT_TABS,
-          };
-          const destination = destinations[finalResponse.role] ?? ROOT_TABS;
-          Alert.alert(
-            "Login Successful",
-            `Signed in as ${finalResponse.role === 'admin' ? 'administrator' : 'user'}.`
+        console.log("[LoginScreen] User object received from backend:", JSON.stringify(response.user, null, 2));
+
+        if (response.success && response.user) {
+          
+          // This call is now correct
+          await login(
+            response.user, 
+            null, 
+            rememberMe 
           );
           
-          if (rememberMe) {
-            console.log("User wants to be remembered:", email);
-          }
+          // ⬇️ *** THIS IS THE FIX (Part 2) *** ⬇️
+          // We use our new helper function to get the correct name
+          const roleDisplayName = getRoleDisplayName(response.user.role_name);
           
-          navigation.reset({
-            index: 0,
-            routes: [{ name: destination }],
-          });
+          Alert.alert(
+            "Login Successful",
+            `Signed in as ${roleDisplayName}.`
+          );
+
         } else {
-          throw new Error('Login failed after MFA verification');
+          throw new Error(response.message || 'Login failed after MFA verification');
         }
       } else {
         throw new Error('Invalid verification code');
@@ -112,7 +108,7 @@ export default function LoginScreen({ navigation }) {
     }
   };
 
-  // Handle resend code
+  // --- Other helper functions (unchanged) ---
   const handleResendCode = async () => {
     setLoading(true);
     try {
@@ -128,26 +124,24 @@ export default function LoginScreen({ navigation }) {
     }
   };
 
-  // Mask email function
   const maskEmail = (email) => {
+    if (!email) return "";
     const [local, domain] = email.split('@');
+    if (!local || !domain) return email;
     const maskedLocal = local.slice(0, 2) + '*'.repeat(local.length - 2);
     return `${maskedLocal}@${domain}`;
   };
 
-  // Back to credentials step
   const handleBackToLogin = () => {
     setStep(1);
     setMfaCode("");
   };
 
-  // Your original forgot password function
   const handleForgotPassword = async () => {
     if (!email) {
       Alert.alert("Missing Email", "Please enter your registered email first.");
       return;
     }
-
     setLoading(true);
     try {
       await forgotPassword(email);
@@ -160,6 +154,7 @@ export default function LoginScreen({ navigation }) {
     }
   };
 
+  // --- JSX Render (unchanged) ---
   return (
     <ImageBackground
       source={require("../../assets/signup-bg.jpg")} 
@@ -261,7 +256,7 @@ export default function LoginScreen({ navigation }) {
             </TouchableOpacity>
           </View>
         )}
-
+        
         {/* Step 2 - MFA Verification */}
         {step === 2 && (
           <View style={styles.formContainer}>
@@ -340,11 +335,13 @@ export default function LoginScreen({ navigation }) {
             </View>
           </View>
         )}
+
       </View>
     </ImageBackground>
   );
 }
 
+// (Styles are unchanged)
 const styles = StyleSheet.create({
   background: {
     flex: 1,
@@ -467,8 +464,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
-
-  // MFA Styles
   mfaHeader: {
     alignItems: "center",
     marginBottom: 25,

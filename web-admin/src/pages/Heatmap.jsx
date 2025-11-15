@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from "react-leaf
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import "leaflet.heat";
-import api from "../utils/axios";
+import { fetchHeatmapObservations, updateObservationMask } from "../services/heatmap";
 
 // ---------- Embedded CSS ----------
 const css = `
@@ -252,6 +252,7 @@ select, input[type="search"] {
   flex: 1;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
 }
 
 .panel-header {
@@ -263,21 +264,6 @@ select, input[type="search"] {
   font-weight: 700;
   color: #0F1C2E;
   margin: 0 0 8px 0;
-}
-
-.choose-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border-radius: 16px;
-  background: #E3ECF9;
-  border: none;
-  color: var(--blue);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  margin-bottom: 16px;
 }
 
 .selected-card {
@@ -627,6 +613,10 @@ const PlantSelectionModal = ({ isOpen, onClose, observations, onSelectPlant }) =
 };
 
 // ---------- Main component ----------
+const DEFAULT_CENTER = [1.55, 110.35];
+const DEFAULT_ZOOM = 8;
+const SINGLE_POINT_ZOOM = 10;
+
 export default function Heatmap() {
   const containerRef = useRef(null);
   const [rightWidth, setRightWidth] = useState(520);
@@ -643,28 +633,61 @@ export default function Heatmap() {
   const [sortDir, setSortDir] = useState("asc");
   const [selectedObservation, setSelectedObservation] = useState(null);
   const [showPlantModal, setShowPlantModal] = useState(false);
+  const mapRef = useRef(null);
+
+  const syncSelectionWithRows = useCallback((nextRows) => {
+    setSelectedObservation((prev) => {
+      if (!prev) return prev;
+      return nextRows.find(
+        (row) => row.observation_id === prev.observation_id
+      ) || null;
+    });
+  }, []);
 
   // Load data
   useEffect(() => {
-    let mounted = true;
+    let isActive = true;
+
+    const applyRows = (nextRows) => {
+      if (!isActive) return;
+      setRows(nextRows);
+      syncSelectionWithRows(nextRows);
+    };
+
     (async () => {
       setLoading(true);
       setError("");
       try {
-        const res = await api.get("/admin/observations?scope=endangered+nearby");
-        const data = Array.isArray(res.data) ? res.data : [];
-        if (mounted) setRows(data.length ? data : MOCK);
-      } catch (e) {
-        if (mounted) {
-          setRows(MOCK);
-          setError("Showing mock data (API unavailable).");
+        const data = await fetchHeatmapObservations({
+          scope: "endangered+nearby",
+        });
+
+        if (!isActive) return;
+
+        if (data.length > 0) {
+          applyRows(data);
+        } else {
+          applyRows(MOCK);
+          setError("Heatmap API returned no observations. Showing mock data.");
         }
+      } catch (err) {
+        if (!isActive) return;
+        console.error("[Heatmap] failed to load observations", err);
+        applyRows(MOCK);
+        const message =
+          err?.response?.data?.message || err?.message || "API unavailable";
+        setError(`Showing mock data (${message}).`);
       } finally {
-        if (mounted) setLoading(false);
+        if (isActive) {
+          setLoading(false);
+        }
       }
     })();
-    return () => { mounted = false; };
-  }, []);
+
+    return () => {
+      isActive = false;
+    };
+  }, [syncSelectionWithRows]);
 
   // Drag handlers
   const onMouseDown = useCallback((e) => {
@@ -701,26 +724,83 @@ export default function Heatmap() {
 
   // Toggle mask function
   const toggleMask = async (obsId) => {
-    setRows(prev =>
-      prev.map(r =>
-        r.observation_id === obsId ? { ...r, is_masked: !r.is_masked } : r
+    const target = rows.find((row) => row.observation_id === obsId);
+    if (!target) return;
+
+    const nextValue = !target.is_masked;
+    const actionLabel = nextValue ? "mask" : "unmask";
+    const confirmed = window.confirm(
+      `Are you sure you want to ${actionLabel} ${target.species.common_name} (${target.observation_id}) for end users?`
+    );
+    if (!confirmed) return;
+
+    setRows((prev) =>
+      prev.map((row) =>
+        row.observation_id === obsId ? { ...row, is_masked: nextValue } : row
       )
     );
-    
-    if (selectedObservation && selectedObservation.observation_id === obsId) {
-      setSelectedObservation(prev => ({ ...prev, is_masked: !prev.is_masked }));
-    }
+
+    setSelectedObservation((prev) =>
+      prev && prev.observation_id === obsId
+        ? { ...prev, is_masked: nextValue }
+        : prev
+    );
 
     try {
-      await api.patch(`/admin/observations/${obsId}/mask`, {});
-    } catch (e) {
-      setRows(prev =>
-        prev.map(r =>
-          r.observation_id === obsId ? { ...r, is_masked: !r.is_masked } : r
+      await updateObservationMask(obsId, nextValue);
+    } catch (err) {
+      console.error(`[Heatmap] failed to update mask for ${obsId}`, err);
+      setRows((prev) =>
+        prev.map((row) =>
+          row.observation_id === obsId ? { ...row, is_masked: !nextValue } : row
         )
       );
+      setSelectedObservation((prev) =>
+        prev && prev.observation_id === obsId
+          ? { ...prev, is_masked: !nextValue }
+          : prev
+      );
+      setError("Failed to update mask state. Changes reverted.");
     }
   };
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (!selectedObservation) {
+      map.flyTo(DEFAULT_CENTER, DEFAULT_ZOOM, { animate: true, duration: 0.5 });
+      return;
+    }
+
+    const coords = rows
+      .filter(
+        (row) =>
+          row.species?.species_id === selectedObservation.species.species_id &&
+          Number.isFinite(Number(row.location_latitude)) &&
+          Number.isFinite(Number(row.location_longitude))
+      )
+      .map((row) => [Number(row.location_latitude), Number(row.location_longitude)]);
+
+    if (coords.length === 0) return;
+
+    if (coords.length === 1) {
+      const zoomTarget = Math.max(
+        SINGLE_POINT_ZOOM,
+        typeof map.getZoom === "function" ? map.getZoom() : SINGLE_POINT_ZOOM
+      );
+      map.flyTo(coords[0], zoomTarget, { animate: true, duration: 0.8 });
+      return;
+    }
+
+    const bounds = L.latLngBounds(coords);
+    const padded = bounds.pad(0.2);
+    if (typeof map.flyToBounds === "function") {
+      map.flyToBounds(padded, { animate: true, duration: 0.8 });
+    } else {
+      map.fitBounds(padded, { animate: true, duration: 0.8 });
+    }
+  }, [selectedObservation, rows]);
 
   // Filter and sort
   const filtered = useMemo(() => {
@@ -792,24 +872,6 @@ export default function Heatmap() {
       <div ref={containerRef} className="admin-heatwrap">
         {/* LEFT: Map */}
         <div className="leftPane" style={{ flexBasis: leftFlexBasis }}>
-          {/* Map mode toggle */}
-          <div className="mapTopBar">
-            <button
-              className={`btn small ${mode === "heatmap" ? "primary" : ""}`}
-              onClick={() => setMode("heatmap")}
-              disabled={!selectedObservation}
-            >
-              Heatmap
-            </button>
-            <button
-              className={`btn small ${mode === "markers" ? "primary" : ""}`}
-              onClick={() => setMode("markers")}
-              disabled={!selectedObservation}
-            >
-              Markers
-            </button>
-          </div>
-
           {/* Visibility badge */}
           {selectedObservation && (
             <div className={`visibility-badge ${!visibleForUser ? 'blocked' : ''}`}>
@@ -817,11 +879,14 @@ export default function Heatmap() {
             </div>
           )}
 
-          <MapContainer
+            <MapContainer
             style={{ height: "100%", width: "100%" }}
-            center={[1.55, 110.35]}
-            zoom={8}
+              center={DEFAULT_CENTER}
+              zoom={DEFAULT_ZOOM}
             scrollWheelZoom
+              whenCreated={(mapInstance) => {
+                mapRef.current = mapInstance;
+              }}
           >
             <TileLayer
               attribution='&copy; OpenStreetMap contributors'
@@ -926,20 +991,11 @@ export default function Heatmap() {
             </div>
           </div>
 
-          {/* Endangered Species Controls Panel */}
-          <div className="controls-panel">
-            <div className="panel-header">
-              <div className="panel-title">Endangered Species Controls</div>
-              {!selectedObservation && (
-                <button 
-                  className="choose-button"
-                  onClick={() => setShowPlantModal(true)}
-                >
-                  <span>🌿</span>
-                  Choose a plant
-                </button>
-              )}
-            </div>
+            {/* Endangered Species Controls Panel */}
+            <div className="controls-panel">
+              <div className="panel-header">
+                <div className="panel-title">Endangered Species Controls</div>
+              </div>
 
             {selectedObservation ? (
               <div className="selected-card">
