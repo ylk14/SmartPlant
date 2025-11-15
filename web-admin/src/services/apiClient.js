@@ -9,18 +9,23 @@ const apiClient = axios.create({
   timeout: 10000,
 });
 
+export const postVerifyMfa = async (payload) => {
+  const { data } = await apiClient.post("/api/mfa/verify", payload);
+  return data;
+};
+
 export const fetchUsers = async () => {
-  const { data } = await apiClient.get("/users");
+  const { data } = await apiClient.get("/api/users");
   return data;
 };
 
 export const fetchRoles = async () => {
-  const { data } = await apiClient.get("/roles");
+  const { data } = await apiClient.get("/api/roles");
   return data;
 };
 
 export const updateUser = async (userId, payload) => {
-  const { data } = await apiClient.put(`/users/${userId}`, payload);
+  const { data } = await apiClient.put(`/api/users/${userId}`, payload);
   return data;
 };
 

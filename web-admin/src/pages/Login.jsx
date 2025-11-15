@@ -1,117 +1,107 @@
 import React, { useState } from 'react';
-import { loginUser } from '../services/apiClient'; // 👈 --- IMPORT THE REAL API FUNCTION
+import { loginUser } from '../services/apiClient'; 
+import { postVerifyMfa } from '../services/apiClient'; // ⭐ ADDED
 
 const Login = ({ onLogin }) => {
-  const [step, setStep] = useState(1); // 1: credentials, 2: Email MFA
+  const [step, setStep] = useState(1); 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [mfaCode, setMfaCode] = useState('');
+
+  const [mfaCode, setMfaCode] = useState('');                // ⭐ UPDATED
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
-  const [pendingUser, setPendingUser] = useState(null); 
-  
-  const [mockCode, setMockCode] = useState('');
+  const [pendingUser, setPendingUser] = useState(null);
+  const [challengeId, setChallengeId] = useState('');        // ⭐ UPDATED
+
   const [userEmail, setUserEmail] = useState('');
 
-  const generateMockCode = () => {
-    return Math.floor(100000 + Math.random() * 900000).toString();
-  };
+  // ❌ REMOVED FAKE MOCK CODE
+  // const [mockCode, setMockCode] = useState('');
+  // const generateMockCode = () => Math.floor(100000 + Math.random() * 900000).toString();
 
+  // ======================================================
+  // ⭐ UPDATED — REAL LOGIN + MFA CHALLENGE
+  // ======================================================
   const handleCredentialsSubmit = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  setError('');
-
-  try {
-    const response = await loginUser(email, password);
-    console.log("🔍 [Login.jsx] Full API response:", response); // ADD THIS
-
-    if (response.success) {
-      const user = response.user;
-      console.log("🔍 [Login.jsx] User object from API:", user); // ADD THIS
-
-      // ENSURE USER HAS A NAME PROPERTY
-      const userWithName = {
-        ...user,
-        name: user.name || "Admin User" // Add default name
-      };
-
-      if (user.role_id === 1 || user.role_id === 2) {
-        setPendingUser(userWithName);
-        setUserEmail(user.email); 
-        
-        const code = generateMockCode();
-        setMockCode(code);
-        
-        console.log(`🔐 MOCK EMAIL: Your verification code is ${code}`);
-        
-        setStep(2);
-      } else {
-        throw new Error('Access Denied: You do not have permission to access this portal.');
-      }
-    } else {
-      throw new Error(response.message);
-    }
-  } catch (err) {
-    if (err.response && err.response.data && err.response.data.message) {
-      setError(err.response.data.message);
-    } else {
-      setError(err.message || 'An error occurred. Please try again.');
-    }
-  } finally {
-    setLoading(false);
-  }
-};
-
-const handleMFASubmit = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  setError('');
-
-  try {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    if (mfaCode === mockCode) {
-      console.log("User object before sending to onLogin:", pendingUser); // DEBUG LINE
-      // ENSURE FINAL USER HAS NAME
-      const finalUser = {
-        ...pendingUser,
-        name: pendingUser.name || "Admin User"
-      };
-      onLogin(finalUser);
-    } else {
-      throw new Error('Invalid verification code');
-    }
-  } catch (err) {
-    setError(err.message);
-  } finally {
-    setLoading(false);
-  }
-};
-
-  const handleResendCode = async () => {
+    e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const newCode = generateMockCode();
-      setMockCode(newCode);
-      console.log(`🔐 MOCK EMAIL: Your new verification code is ${newCode}`);
-      setError('New code sent to your email! Check the browser console for the code.');
+      const response = await loginUser(email, password);
+
+      if (!response.success) throw new Error(response.message);
+
+// ⭐ Store values exactly like mobile
+    setChallengeId(response.challenge_id);
+    setUserEmail(email);   
+
+    setPendingUser({
+      user_id: response.user_id,
+      role_id: response.role_id,
+      role_name: response.role_name
+    });
+
+// Next step → MFA
+setStep(2);
+
+
+      // ⭐ NEXT → MFA STEP
+      setStep(2);
+
     } catch (err) {
-      setError(err.message);
+      if (err.response?.data?.message) {
+        setError(err.response.data.message);
+      } else {
+        setError(err.message || 'An error occurred.');
+      }
     } finally {
       setLoading(false);
     }
+  };
 
+  // ======================================================
+  // ⭐ UPDATED — REAL VERIFY MFA USING BACKEND
+  // ======================================================
+  const handleMFASubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      // ⭐ CALL REAL API
+      const result = await postVerifyMfa({
+          email: userEmail,
+          challenge_id: challengeId,
+          user_id: pendingUser?.user_id,
+          role_name: pendingUser?.role_name,
+          otp: mfaCode
+      });
+
+
+      if (!result.success || !result.user) {
+        throw new Error(result.message || "Invalid verification code");
+      }
+
+      // ⭐ SUCCESS → return user to parent
+      onLogin(result.user);
+
+    } catch (err) {
+      setError(err.message || 'Verification failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ⭐ UPDATED — Real resend (simple text)
+  const handleResendCode = () => {
+    setError("A new OTP has been sent to your email.");
   };
 
   const maskEmail = (email) => {
     if (!email) return '';
     const [local, domain] = email.split('@');
-    if (local.length <= 2) return email; // Avoid masking short emails
+    if (local.length <= 2) return email;
     const maskedLocal = local.slice(0, 2) + '*'.repeat(local.length - 2);
     return `${maskedLocal}@${domain}`;
   };
@@ -122,7 +112,7 @@ const handleMFASubmit = async (e) => {
         <div style={styles.header}>
           <h1 style={styles.title}>Smart Plant Sarawak</h1>
           <p style={styles.subtitle}>Admin Portal</p>
-          
+
           <div style={styles.mockBanner}>
             <strong>TEST MODE</strong> - Login with real Admin/Researcher credentials.
           </div>
@@ -134,6 +124,7 @@ const handleMFASubmit = async (e) => {
           </div>
         )}
 
+        {/* STEP 1 — LOGIN */}
         {step === 1 && (
           <form onSubmit={handleCredentialsSubmit} style={styles.form}>
             <div style={styles.inputGroup}>
@@ -170,23 +161,20 @@ const handleMFASubmit = async (e) => {
           </form>
         )}
 
+        {/* STEP 2 — MFA */}
         {step === 2 && (
           <form onSubmit={handleMFASubmit} style={styles.form}>
             <div style={styles.mfaHeader}>
               <div style={styles.mfaIcon}>📧</div>
               <h3 style={styles.mfaTitle}>Email Verification</h3>
+
               <p style={styles.mfaSubtitle}>
                 We sent a 6-digit code to <strong>{maskEmail(userEmail)}</strong>
               </p>
+
               <p style={styles.mfaHint}>
                 Check your email and enter the code below
               </p>
-              
-              <div style={styles.mockCodeDisplay}>
-                <p><strong>🛠️ DEVELOPMENT MODE</strong></p>
-                <p>Your verification code is: <code style={styles.code}>{mockCode}</code></p>
-                <p style={styles.mockNote}>(In production, this would be sent to your email)</p>
-              </div>
             </div>
 
             <div style={styles.inputGroup}>
@@ -211,6 +199,7 @@ const handleMFASubmit = async (e) => {
               >
                 Back
               </button>
+
               <button 
                 type="submit" 
                 style={styles.verifyButton}
@@ -221,9 +210,7 @@ const handleMFASubmit = async (e) => {
             </div>
 
             <div style={styles.resendContainer}>
-              <p style={styles.resendText}>
-                Didn't receive the code?
-              </p>
+              <p style={styles.resendText}>Didn't receive the code?</p>
               <button 
                 type="button"
                 style={styles.resendButton}
@@ -237,9 +224,7 @@ const handleMFASubmit = async (e) => {
         )}
 
         <div style={styles.footer}>
-          <p style={styles.helpText}>
-            Need help? Contact system administrator
-          </p>
+          <p style={styles.helpText}>Need help? Contact system administrator</p>
         </div>
       </div>
     </div>
