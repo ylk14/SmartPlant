@@ -5,57 +5,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, Heatmap } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { ADMIN_ENDANGERED } from '../../navigation/routes';
-
-const mockAdminObservations = [
-  {
-    observation_id: 'OBS-3011',
-    user_id: 42,
-    species: {
-      species_id: 5,
-      common_name: 'Rafflesia arnoldii',
-      scientific_name: 'Rafflesia arnoldii',
-      is_endangered: true,
-    },
-    location_latitude: 1.4667,
-    location_longitude: 110.3333,
-    location_name: 'Bako National Park',
-    confidence_score: 0.35,
-    is_masked: false,
-  },
-  {
-    observation_id: 'OBS-2987',
-    user_id: 51,
-    species: {
-      species_id: 9,
-      common_name: 'Nepenthes rajah',
-      scientific_name: 'Nepenthes rajah',
-      is_endangered: true,
-    },
-    location_latitude: 1.595,
-    location_longitude: 110.345,
-    location_name: 'Santubong Forest Reserve',
-    confidence_score: 0.62,
-    is_masked: true,
-  },
-  {
-    observation_id: 'OBS-2860',
-    user_id: 17,
-    species: {
-      species_id: 14,
-      common_name: 'Dendrobium anosmum',
-      scientific_name: 'Dendrobium anosmum',
-      is_endangered: false,
-    },
-    location_latitude: 1.522,
-    location_longitude: 110.365,
-    location_name: 'Semenggoh Nature Reserve',
-    confidence_score: 0.81,
-    is_masked: false,
-  },
-];
+import { fetchObservationsBySpecies } from "../../../services/api";
 
 export default function AdminHeatmapScreen() {
-  const [observations, setObservations] = useState(mockAdminObservations);
+  const [observations, setObservations] = useState([]);
   const [viewMode, setViewMode] = useState('heatmap');
   const [selectedObservation, setSelectedObservation] = useState(null);
   const navigation = useNavigation();
@@ -106,30 +59,32 @@ export default function AdminHeatmapScreen() {
   const incomingObservation = route?.params?.selectedObservation;
 
   useEffect(() => {
-    if (!incomingObservation) {
-      return;
-    }
+    if (!incomingObservation) return;
 
-    setObservations((prev) => {
-      const existingIndex = prev.findIndex(
-        (obs) => obs.observation_id === incomingObservation.observation_id
-      );
-      if (existingIndex >= 0) {
-        const updated = [...prev];
-        updated[existingIndex] = { ...prev[existingIndex], ...incomingObservation };
-        return updated;
-      }
-      return [...prev, incomingObservation];
-    });
+    setSelectedObservation(incomingObservation);
 
-    setSelectedObservation((prev) => {
-      if (prev && prev.observation_id === incomingObservation.observation_id) {
-        return { ...prev, ...incomingObservation };
-      }
-      return { ...incomingObservation };
-    });
-    setViewMode('heatmap');
+    // Fetch real observation data from backend
+    fetchObservationsBySpecies(incomingObservation.species.species_id)
+      .then(json => {
+        if (!json.success) return;
+
+        const converted = json.data.map(row => ({
+          observation_id: row.observation_id,
+          user_id: row.user_id,
+          species: incomingObservation.species,
+          location_latitude: parseFloat(row.location_latitude),
+          location_longitude: parseFloat(row.location_longitude),
+          location_name: row.location_name || `Lat: ${row.location_latitude}, Lon: ${row.location_longitude}`,
+          confidence_score: row.confidence_score ?? 0.75,
+          is_masked: false,
+        }));
+
+        setObservations(converted);
+        setViewMode("heatmap");
+      })
+      .catch(err => console.log("Observation fetch error:", err));
   }, [incomingObservation]);
+
 
   useEffect(() => {
     if (!selectedObservation || !mapRef.current) {
@@ -274,7 +229,7 @@ export default function AdminHeatmapScreen() {
           </View>
           <TouchableOpacity style={styles.chooseButton} onPress={handleChoosePlant}>
             <Ionicons name="leaf-outline" size={16} color="#0F4C81" />
-            <Text style={styles.chooseButtonText}>Choose a plant</Text>
+            <Text style={styles.chooseButtonText}>Endangered Plant</Text>
           </TouchableOpacity>
 
           {selectedObservation ? (

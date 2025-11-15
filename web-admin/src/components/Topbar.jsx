@@ -2,6 +2,8 @@
 import React from "react";
 import "./Topbar.css";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
+import MenuOpenIcon from "@mui/icons-material/MenuOpen";
+import MenuIcon from "@mui/icons-material/Menu";
 
 // A simple helper function to capitalize the first letter
 const capitalize = (s) => {
@@ -10,7 +12,7 @@ const capitalize = (s) => {
 };
 
 // 1. Accept the 'user' object as a prop
-export default function Topbar({ user, onLogout }) {
+export default function Topbar({ user, onLogout, onToggleSidebar, isSidebarCollapsed }) {
   
   // 2. Get the role_name from the user object (e.g., "admin" or "researcher")
   //    and provide a fallback.
@@ -19,6 +21,16 @@ export default function Topbar({ user, onLogout }) {
   return (
     <div className="topbar">
       <div className="topbar-left">
+        {onToggleSidebar && (
+          <button
+            className="sidebar-toggle-btn"
+            onClick={onToggleSidebar}
+            aria-label="Toggle sidebar"
+            type="button"
+          >
+            {isSidebarCollapsed ? <MenuIcon /> : <MenuOpenIcon />}
+          </button>
+        )}
         <h1 className="topbar-title">Admin Dashboard</h1>
       </div>
       
@@ -30,13 +42,7 @@ export default function Topbar({ user, onLogout }) {
           <span className="user-name">{capitalize(roleName)}</span>
         
         </div>
-        
-        <button 
-          className="topbar-logout-btn"
-          onClick={onLogout}
-        >
-          Logout
-        </button>
+
       </div>
     </div>
   );

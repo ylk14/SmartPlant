@@ -136,12 +136,14 @@ export default function AdminAgentChat() {
 
   // Inline styles object
   const styles = {
-    widget: {
-      position: 'fixed',
-      bottom: '20px',
-      right: '20px',
-      zIndex: 1000,
-    },
+      widget: {
+        position: 'fixed',
+        bottom: 'clamp(12px, 3vh, 24px)',
+        right: 'clamp(12px, 4vw, 32px)',
+        zIndex: 1000,
+        maxWidth: '100%',
+        pointerEvents: 'auto',
+      },
     toggleButton: {
       position: 'relative',
       width: '60px',
@@ -176,15 +178,17 @@ export default function AdminAgentChat() {
       justifyContent: 'center',
       fontWeight: 'bold',
     },
-    window: {
-      width: '380px',
-      height: '600px',
+      window: {
+        width: 'min(380px, calc(100vw - 32px))',
+        height: 'min(560px, calc(100vh - 120px))',
+        maxWidth: '100%',
       background: 'white',
       borderRadius: '16px',
       boxShadow: '0 10px 25px rgba(0, 0, 0, 0.15)',
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
+        pointerEvents: 'auto',
     },
     header: {
       background: 'white',
@@ -341,10 +345,11 @@ export default function AdminAgentChat() {
       background: '#1D4ED8',
       animation: 'typingAnimation 1.4s infinite ease-in-out',
     },
-    inputArea: {
+      inputArea: {
       padding: '16px',
       background: 'white',
       borderTop: '1px solid #E2E8F0',
+        flexShrink: 0,
     },
     inputContainer: {
       display: 'flex',

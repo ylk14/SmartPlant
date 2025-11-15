@@ -6,15 +6,32 @@
   overflow: hidden;
 }
 
-/* Sidebar always fixed width */
-.admin-layout .sidebar {
-  width: 240px;
-  min-width: 240px;
+.sidebar-shell {
+  width: 260px;
+  min-width: 260px;
   height: 100%;
+  transition: width 0.3s ease, min-width 0.3s ease;
+  overflow: hidden;
   background: #1f2937;
+}
+
+.sidebar-shell .sidebar {
+  width: 260px;
+  min-width: 260px;
+  height: 100%;
   color: white;
   position: relative;
   flex-shrink: 0;
+  transition: transform 0.3s ease;
+}
+
+.sidebar-shell.collapsed {
+  width: 0;
+  min-width: 0;
+}
+
+.sidebar-shell.collapsed .sidebar {
+  transform: translateX(-100%);
 }
 
 /* Main area (topbar + content) */
