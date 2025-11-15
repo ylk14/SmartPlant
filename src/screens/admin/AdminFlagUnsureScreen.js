@@ -1,9 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { ADMIN_FLAG_REVIEW } from '../../navigation/routes';
-import api from '../../../services/api';
+import { fetchPendingObservations } from '../../../services/api';
 
 const toPercent = (score) => `${Math.round((Number(score) || 0) * 100)}%`;
 
@@ -19,29 +19,39 @@ export default function AdminFlagUnsureScreen() {
       let page = 1;
       let all = [];
 
-      while (true) {
-        const resp = await api.get('/api/admin/observations', {
-          params: {
-            status: 'pending',
-            // we will fix auto_flagged in the next section
-            page,
-            page_size: pageSize,
-          },
-        });
+      // while (true) {
+      //   const resp = await api.get('/api/admin/observations', {
+      //     params: {
+      //       status: 'pending',
+      //       // we will fix auto_flagged in the next section
+      //       page,
+      //       page_size: pageSize,
+      //     },
+      //   });
 
-        const batch = Array.isArray(resp.data?.data) ? resp.data.data : [];
+      //   const batch = Array.isArray(resp.data?.data) ? resp.data.data : [];
+      //   all = all.concat(batch);
+
+      //   const nextPage = resp.data?.next_page;
+      //   const haveMore = nextPage ? true : batch.length === pageSize;
+
+      //   if (!haveMore) break;
+      //   page = nextPage || (page + 1);
+      // }
+
+      while (true) {
+        const resp = await fetchPendingObservations(page, pageSize);
+
+        const batch = Array.isArray(resp.data) ? resp.data : [];
         all = all.concat(batch);
 
-        const nextPage = resp.data?.next_page;
-        const haveMore = nextPage ? true : batch.length === pageSize;
-
-        if (!haveMore) break;
-        page = nextPage || (page + 1);
+        if (!resp.next_page || batch.length === 0) break;
+        page = resp.next_page;
       }
 
       setRows(all);
     } catch (e) {
-      console.log('[FlagUnsure] fetch error', e?.response?.status, e?.response?.data);
+      console.log('[FlagUnsure] fetch error', e);
       Alert.alert('Error', 'Failed to load flagged observations');
     } finally {
       setLoading(false);

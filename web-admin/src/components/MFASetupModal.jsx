@@ -1,51 +1,50 @@
 import React, { useState } from 'react';
+import { postVerifyMfa } from '../services/apiClient'; // ⭐ ADDED
 
 export default function MFASetupModal({ user, onClose, onMFASetupComplete }) {
-  const [step, setStep] = useState(1); 
+  const [step, setStep] = useState(1);
   const [verificationCode, setVerificationCode] = useState('');
-  const [qrCodeUrl, setQrCodeUrl] = useState(''); // Will be provided by cybersecurity backend
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
 
-  // This will be called by cybersecurity team's API
+  // ⭐ UPDATED — REAL backend setup
   const initiateMFASetup = async () => {
     try {
-      // Cybersecurity team will implement this endpoint
-      const response = await fetch('/api/mfa/setup', {
+      const response = await fetch('/api/mfa/setup', {   // ⭐ UPDATED
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.user_id })
       });
+
       const data = await response.json();
       setQrCodeUrl(data.qrCodeUrl);
       setStep(2);
+
     } catch (error) {
       console.error('MFA setup failed:', error);
     }
   };
 
+  // ⭐ UPDATED — REAL backend verify
   const verifyMFACode = async () => {
     try {
-      // Cybersecurity team will implement verification
-      const response = await fetch('/api/mfa/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.user_id,
-          code: verificationCode
-        })
-      });
-      
-      if (response.ok) {
+      // ⭐ CALL REAL FUNCTION
+      const result = await postVerifyMfa(user.challenge_id, verificationCode);
+
+      if (result.success) {
         onMFASetupComplete(user.user_id);
         onClose();
+      } else {
+        alert(result.message || "Invalid code");
       }
+
     } catch (error) {
       console.error('MFA verification failed:', error);
     }
   };
 
   return (
-    <div style={modalStyles.overlay}>
-      <div style={modalStyles.modal}>
+    <div style={styles.overlay}>
+      <div style={styles.modal}>
         <h3>Setup Multi-Factor Authentication</h3>
         <p>For user: {user.username}</p>
 

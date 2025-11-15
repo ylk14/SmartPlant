@@ -42,13 +42,7 @@ export default function Topbar({ user, onLogout, onToggleSidebar, isSidebarColla
           <span className="user-name">{capitalize(roleName)}</span>
         
         </div>
-        
-        <button 
-          className="topbar-logout-btn"
-          onClick={onLogout}
-        >
-          Logout
-        </button>
+
       </div>
     </div>
   );

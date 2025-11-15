@@ -18,7 +18,10 @@ import {
   TAB_HOME,
   TAB_IDENTIFY,
 } from '../navigation/routes';
-import api from '../../services/api';
+import {
+  flagObservationUnsure,
+  confirmObservationLooksCorrect,
+} from '../../services/api';
 
 const COLORS = {
   red:   '#E74C3C',
@@ -140,19 +143,32 @@ export default function ResultScreen() {
     });
   }, [result, topMatch]);
 
+  // const handleFlagUnsure = async () => {
+  //   if (!observation_id || isLoading) return;
+  //   setIsLoading(true);
+  //   try {
+  //     await api.put(`/plant-observations/${observation_id}`, {
+  //       status: 'pending',
+  //     });
+  //     nav.navigate('FlagUnsure', { observationId: observation_id, photoUri: photo?.uri });
+  //   } catch (error) {
+  //     console.error('Flag Unsure Error:', error);
+  //     Alert.alert('Error', 'Could not submit your report.');
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
+
   const handleFlagUnsure = async () => {
-    if (!observation_id || isLoading) return;
-    setIsLoading(true);
     try {
-      await api.put(`/plant-observations/${observation_id}`, {
-        status: 'pending',
-      });
+      const observationId = result?.observation_id;
+      console.log('[ResultScreen] topK:', topK);
+
+      await flagObservationUnsure(observationId, { reason: 'user_flagged' });
       nav.navigate('FlagUnsure', { observationId: observation_id, photoUri: photo?.uri });
-    } catch (error) {
-      console.error('Flag Unsure Error:', error);
-      Alert.alert('Error', 'Could not submit your report.');
-    } finally {
-      setIsLoading(false);
+    } catch (err) {
+      console.error('Flag Unsure Error:', err);
+      Alert.alert('Error', 'Could not flag this observation. Please try again.');
     }
   };
 
@@ -160,17 +176,42 @@ export default function ResultScreen() {
     if (!observation_id || isLoading) return;
     setIsLoading(true);
     try {
-      await api.put(`/plant-observations/${observation_id}`, {
-        status: 'verified',
-      });
+      await confirmObservationLooksCorrect(observation_id, { source: 'user' });
       goHome();
-    } catch (error) {
-      console.error('Confirm Error:', error);
-      Alert.alert('Error', 'Could not confirm this observation.');
+    } catch (err) {
+      console.error('Looks Correct Error:', err);
+      Alert.alert('Error', 'Could not confirm this observation. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
+
+
+  // const handleLooksCorrect = async () => {
+  //   try {
+  //     const observationId = result?.observation_id;
+  //     await confirmObservationLooksCorrect(observationId, { source: 'user' });
+  //     // update UI / navigate
+  //   } catch (err) {
+  //     console.error('Looks Correct Error:', err);
+  //   }
+  // };
+
+  // const handleConfirm = async () => {
+  //   if (!observation_id || isLoading) return;
+  //   setIsLoading(true);
+  //   try {
+  //     await api.put(`/plant-observations/${observation_id}`, {
+  //       status: 'verified',
+  //     });
+  //     goHome();
+  //   } catch (error) {
+  //     console.error('Confirm Error:', error);
+  //     Alert.alert('Error', 'Could not confirm this observation.');
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
 
   const goHome = () => {
     nav.dispatch(

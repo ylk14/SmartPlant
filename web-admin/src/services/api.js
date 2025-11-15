@@ -81,7 +81,6 @@ export const postChatMessage = async (query) => {
   */
 };
 
-// Add other functions you need for web...
 export const fetchSensorData = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/iot/latest`);
@@ -89,6 +88,41 @@ export const fetchSensorData = async () => {
     return await response.json();
   } catch (error) {
     console.error("Error fetching sensor data:", error);
+    throw error;
+  }
+};
+
+
+// Dashboard API functions
+export const fetchDashboardStats = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/dashboard/stats`);
+    if (!response.ok) throw new Error('Failed to fetch dashboard stats');
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching dashboard stats:", error);
+    throw error;
+  }
+};
+
+export const fetchRecentActivities = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/dashboard/activities`);
+    if (!response.ok) throw new Error('Failed to fetch recent activities');
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching recent activities:", error);
+    throw error;
+  }
+};
+
+export const fetchSystemStatus = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/dashboard/status`);
+    if (!response.ok) throw new Error('Failed to fetch system status');
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching system status:", error);
     throw error;
   }
 };

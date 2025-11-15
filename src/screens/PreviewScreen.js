@@ -4,11 +4,12 @@ import { View, Image, StyleSheet, Text, TouchableOpacity, Alert, ActivityIndicat
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
-import ScannerOverlay from '../screens/components/ScannerOverlay'; 
+import ScannerOverlay from '../screens/components/ScannerOverlay';
+import { API_BASE_URL } from '../../services/api';
 
 // const API_BASE = 'http://localhost:3000';
 // const API_BASE = 'http://10.0.2.2:3000';
-const API_BASE = 'http://192.168.0.112:3000';
+// const API_BASE = 'http://192.168.0.112:3000';
 const LOW_CONFIDENCE_THRESHOLD = 60;
 
 export default function PreviewScreen() {
@@ -82,6 +83,7 @@ export default function PreviewScreen() {
         Number.isFinite(lat) &&
         Number.isFinite(lon)
       ) {
+        // backend supports location_latitude/location_longitude
         form.append('location_latitude', String(lat));
         form.append('location_longitude', String(lon));
       }
@@ -92,11 +94,15 @@ export default function PreviewScreen() {
 
       // temp hardcoded user for testing
       form.append('user_id', '1');
-      
-      console.log('[scan] posting to', `${API_BASE}/scan`);
-      const res = await fetch(`${API_BASE}/scan`, {
+
+      const url = `${API_BASE_URL}/scan`;
+      console.log('[scan] posting to', url);
+
+      const res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
         body: form,
       });
 

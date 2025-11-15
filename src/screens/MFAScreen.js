@@ -5,40 +5,40 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
-  Platform,
+  Alert,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 
-export default function MFAVerificationScreen({ 
-  route, 
-  navigation 
-}) {
-  const { email, userId, onVerifySuccess } = route.params;
+import { Ionicons } from "@expo/vector-icons";
+import { postVerifyMfa } from "../../services/api";
+import { useAuth } from "../context/AuthContext";
+
+// ⭐ Import correct route constants
+import { ADMIN_ROOT, ROOT_TABS } from "../navigation/routes";
+
+export default function MFAScreen({ route, navigation }) {
+  const { challenge_id, email } = route.params || {};
+  const { login } = useAuth();
+
   const [mfaCode, setMfaCode] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [timeLeft, setTimeLeft] = useState(30);
   const [canResend, setCanResend] = useState(false);
+  const [error, setError] = useState("");
 
-  // Mock MFA code for development (remove in production)
-  const [mockCode, setMockCode] = useState("");
-
-  // Generate mock code when screen loads
+  // Countdown timer
   useEffect(() => {
-    const newMockCode = Math.floor(100000 + Math.random() * 900000).toString();
-    setMockCode(newMockCode);
-    console.log(`🔐 MOCK MFA CODE: ${newMockCode}`);
-    
-    // Start countdown timer
+    setTimeLeft(30);
+    setCanResend(false);
+
     const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
+      setTimeLeft((t) => {
+        if (t <= 1) {
           setCanResend(true);
+          clearInterval(timer);
           return 0;
         }
-        return prev - 1;
+        return t - 1;
       });
     }, 1000);
 
@@ -47,156 +47,98 @@ export default function MFAVerificationScreen({
 
   const handleVerify = async () => {
     if (mfaCode.length !== 6) {
-      setError("Please enter a 6-digit code");
+      setError("Please enter 6 digits");
       return;
     }
 
-    setLoading(true);
-    setError("");
-
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      setLoading(true);
+      setError("");
 
-      // Mock verification - in production, this would call your backend
-      if (mfaCode === mockCode) {
-        Alert.alert("Success", "MFA verification successful!");
-        
-        // Call the success callback with user data
-        if (onVerifySuccess) {
-          onVerifySuccess();
-        } else {
-          // Fallback navigation
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'ROOT_TABS' }],
-          });
-        }
-      } else {
-        throw new Error('Invalid verification code');
+      const result = await postVerifyMfa(challenge_id, mfaCode);
+      console.log("MFA result:", result);
+
+      if (!result.success || !result.user) {
+        setError(result.message || "Verification failed");
+        return;
       }
+
+      const user = result.user;
+
+      // Save user profile to AuthContext
+      await login(user);
+
+      Alert.alert("Success", "Verification passed!");
+
+        setTimeout(() => {
+          if (user.role_id === 1 || user.role_id === 2) {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: ADMIN_ROOT }],
+            });
+          } else {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: ROOT_TABS }],
+            });
+          }
+        }, 50);
+
     } catch (err) {
-      setError(err.message);
+      console.error("MFA error:", err);
+      setError("Server error");
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleResendCode = async () => {
-    setLoading(true);
-    setError("");
-    setCanResend(false);
-    setTimeLeft(30);
-
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const newMockCode = Math.floor(100000 + Math.random() * 900000).toString();
-      setMockCode(newMockCode);
-      console.log(`🔐 MOCK MFA CODE: ${newMockCode}`);
-      
-      setError("New code sent! Check console for development mode.");
-    } catch (err) {
-      setError("Failed to resend code");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const maskEmail = (email) => {
-    const [local, domain] = email.split('@');
-    const maskedLocal = local.slice(0, 2) + '*'.repeat(local.length - 2);
-    return `${maskedLocal}@${domain}`;
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <View style={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#333" />
-          </TouchableOpacity>
-          <Text style={styles.title}>Verification Required</Text>
+    <KeyboardAvoidingView style={styles.container}>
+      <View style={styles.card}>
+        <View style={styles.iconCircle}>
+          <Ionicons name="mail" size={32} color="#fff" />
         </View>
 
-        {/* Icon and Instructions */}
-        <View style={styles.iconContainer}>
-          <Ionicons name="shield-checkmark" size={64} color="#78a756ff" />
-        </View>
-
+        <Text style={styles.title}>Email Verification</Text>
         <Text style={styles.subtitle}>
-          We sent a verification code to
+          Enter the code sent to <Text style={{ color: "#9ADE7B" }}>{email}</Text>
         </Text>
-        <Text style={styles.emailText}>{maskEmail(email)}</Text>
 
-        {/* Mock Code Display - Remove in production */}
-        <View style={styles.mockContainer}>
-          <Text style={styles.mockTitle}>🛠️ DEVELOPMENT MODE</Text>
-          <Text style={styles.mockCode}>Code: {mockCode}</Text>
-          <Text style={styles.mockNote}>(In production, this would be sent via email/authenticator)</Text>
-        </View>
+        <TextInput
+          style={styles.input}
+          maxLength={6}
+          keyboardType="numeric"
+          value={mfaCode}
+          onChangeText={setMfaCode}
+        />
 
-        {/* Error Message */}
-        {error ? (
-          <View style={[
-            styles.messageBox, 
-            error.includes('sent') ? styles.successBox : styles.errorBox
-          ]}>
-            <Text style={styles.messageText}>{error}</Text>
-          </View>
-        ) : null}
+        {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        {/* Code Input */}
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>Enter 6-digit code</Text>
-          <TextInput
-            style={styles.codeInput}
-            value={mfaCode}
-            onChangeText={(text) => {
-              setMfaCode(text.replace(/\D/g, '').slice(0, 6));
-              setError("");
-            }}
-            placeholder="000000"
-            keyboardType="number-pad"
-            maxLength={6}
-            autoFocus={true}
-          />
-        </View>
-
-        {/* Verify Button */}
         <TouchableOpacity
           style={[
             styles.verifyButton,
-            (loading || mfaCode.length !== 6) && styles.buttonDisabled
+            mfaCode.length !== 6 && { opacity: 0.5 },
           ]}
-          onPress={handleVerify}
           disabled={loading || mfaCode.length !== 6}
+          onPress={handleVerify}
         >
           <Text style={styles.verifyButtonText}>
             {loading ? "Verifying..." : "Verify Code"}
           </Text>
         </TouchableOpacity>
 
-        {/* Resend Code */}
-        <View style={styles.resendContainer}>
-          <Text style={styles.resendText}>
-            Didn't receive the code? 
-          </Text>
+        <View style={styles.resendRow}>
+          <Text style={styles.resendText}>Didn’t receive the code?</Text>
           <TouchableOpacity
-            onPress={handleResendCode}
-            disabled={!canResend || loading}
+            disabled={!canResend}
+            onPress={() => Alert.alert("Sent", "New OTP sent")}
           >
-            <Text style={[
-              styles.resendButtonText,
-              (!canResend || loading) && styles.resendDisabled
-            ]}>
+            <Text
+              style={[
+                styles.resendButtonText,
+                !canResend && { color: "#999" },
+              ]}
+            >
               {canResend ? "Resend Code" : `Resend in ${timeLeft}s`}
             </Text>
           </TouchableOpacity>
@@ -209,146 +151,80 @@ export default function MFAVerificationScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F6F9F4",
-  },
-  content: {
-    flex: 1,
-    padding: 20,
+    backgroundColor: "#030712",
     justifyContent: "center",
-  },
-  header: {
-    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 40,
-    position: "absolute",
-    top: 50,
-    left: 20,
+    paddingHorizontal: 20,
   },
-  backButton: {
-    padding: 8,
+  card: {
+    width: "100%",
+    backgroundColor: "#111827",
+    borderRadius: 16,
+    padding: 20,
+    alignItems: "center",
+  },
+  iconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#78a756",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
   },
   title: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#1F2A37",
-    marginLeft: 10,
-  },
-  iconContainer: {
-    alignItems: "center",
-    marginBottom: 20,
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#F9FAFB",
+    marginBottom: 8,
+    textAlign: "center",
   },
   subtitle: {
-    fontSize: 16,
-    color: "#6B7280",
+    fontSize: 14,
+    color: "#D1D5DB",
     textAlign: "center",
-    marginBottom: 5,
-  },
-  emailText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1F2A37",
-    textAlign: "center",
-    marginBottom: 30,
-  },
-  mockContainer: {
-    backgroundColor: "#F3F4F6",
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 8,
-    padding: 15,
     marginBottom: 20,
   },
-  mockTitle: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#374151",
-    textAlign: "center",
-    marginBottom: 5,
-  },
-  mockCode: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#1F2937",
-    textAlign: "center",
-    marginBottom: 5,
-  },
-  mockNote: {
-    fontSize: 12,
-    color: "#6B7280",
-    textAlign: "center",
-    fontStyle: "italic",
-  },
-  messageBox: {
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 20,
-  },
-  errorBox: {
-    backgroundColor: "#FEF2F2",
+  input: {
+    width: "100%",
     borderWidth: 1,
-    borderColor: "#FECACA",
-  },
-  successBox: {
-    backgroundColor: "#F0FDF4",
-    borderWidth: 1,
-    borderColor: "#BBF7D0",
-  },
-  messageText: {
-    fontSize: 14,
-    textAlign: "center",
-  },
-  inputContainer: {
-    marginBottom: 30,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#374151",
-    marginBottom: 10,
-    textAlign: "center",
-  },
-  codeInput: {
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 12,
-    padding: 16,
+    borderColor: "#374151",
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     fontSize: 18,
-    fontWeight: "bold",
+    color: "#E5E7EB",
     textAlign: "center",
-    letterSpacing: 8,
+    letterSpacing: 4,
+    marginBottom: 10,
+    backgroundColor: "#020617",
+  },
+  error: {
+    color: "#F87171",
+    alignSelf: "flex-start",
+    marginBottom: 8,
   },
   verifyButton: {
-    backgroundColor: "#78a756ff",
-    padding: 16,
-    borderRadius: 12,
+    width: "100%",
+    backgroundColor: "#78a756",
+    paddingVertical: 14,
+    borderRadius: 10,
     alignItems: "center",
-    marginBottom: 20,
-  },
-  buttonDisabled: {
-    backgroundColor: "#9CA3AF",
+    marginTop: 4,
   },
   verifyButtonText: {
-    color: "#FFFFFF",
+    color: "#fff",
     fontSize: 16,
-    fontWeight: "bold",
-  },
-  resendContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  resendText: {
-    fontSize: 14,
-    color: "#6B7280",
-    marginRight: 5,
-  },
-  resendButtonText: {
-    fontSize: 14,
-    color: "#78a756ff",
     fontWeight: "600",
   },
-  resendDisabled: {
-    color: "#9CA3AF",
+  resendRow: {
+    flexDirection: "row",
+    marginTop: 16,
+    alignItems: "center",
+  },
+  resendText: { color: "#6B7280", marginRight: 6 },
+  resendButtonText: {
+    color: "#78a756",
+    fontWeight: "600",
   },
 });

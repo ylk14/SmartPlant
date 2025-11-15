@@ -46,22 +46,6 @@
   color: #374151;
 }
 
-.topbar-logout-btn {
-  padding: 8px 16px;
-  background-color: #F3F4F6;
-  color: #374151;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.topbar-logout-btn:hover {
-  background-color: #DC2626;
-}
-
 .sidebar-toggle-btn {
   border: none;
   background: #F3F4F6;

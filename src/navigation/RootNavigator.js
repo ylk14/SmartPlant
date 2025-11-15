@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-start',
     alignItems: 'center',
-    paddingTop: 10,
+    marginBottom:20,
   },
   scanCircle: {
     width: SCAN_SIZE,

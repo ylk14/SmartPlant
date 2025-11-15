@@ -13,130 +13,28 @@ import { Ionicons } from "@expo/vector-icons";
 import { loginUser, forgotPassword } from "../../services/api";
 import { useAuth } from "../context/AuthContext";
 
-// ⬇️ *** THIS IS THE FIX (Part 1) *** ⬇️
-// Helper function to get the display name for the role
-function getRoleDisplayName(roleName) {
-  if (roleName === 'admin') {
-    return 'administrator';
-  }
-  if (roleName === 'researcher') {
-    return 'Plant Researcher';
-  }
-  // Default for 'public' or any other role
-  return 'user'; 
-}
-
 export default function LoginScreen({ navigation }) {
   const { login } = useAuth();
 
-  // (All your state variables are unchanged)
+  // Form states
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState(1);
-  const [mfaCode, setMfaCode] = useState("");
-  const [mockCode, setMockCode] = useState("");
-  const [userEmail, setUserEmail] = useState("");
 
-  const generateMockCode = () => {
-    return Math.floor(100000 + Math.random() * 900000).toString();
-  };
-
-  // (handleCredentialsSubmit is unchanged)
-  const handleCredentialsSubmit = async () => {
-    if (!email || !password) {
-      Alert.alert("Missing Fields", "Please enter both email and password.");
-      return;
-    }
-    setLoading(true);
-    try {
-      const code = generateMockCode();
-      setMockCode(code);
-      setUserEmail(email);
-      console.log(`MOCK EMAIL: Your verification code is ${code}`);
-      setStep(2);
-    } catch (err) {
-      Alert.alert("Login Failed", err.message || "Invalid email or password");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle MFA verification
-  const handleMFASubmit = async () => {
-    if (mfaCode.length !== 6) {
-      Alert.alert("Invalid Code", "Please enter a 6-digit verification code.");
-      return;
-    }
-    setLoading(true);
-    try {
-      if (mfaCode === mockCode) {
-        const response = await loginUser(email, password);
-        
-        console.log("[LoginScreen] User object received from backend:", JSON.stringify(response.user, null, 2));
-
-        if (response.success && response.user) {
-          
-          // This call is now correct
-          await login(
-            response.user, 
-            null, 
-            rememberMe 
-          );
-          
-          // ⬇️ *** THIS IS THE FIX (Part 2) *** ⬇️
-          // We use our new helper function to get the correct name
-          const roleDisplayName = getRoleDisplayName(response.user.role_name);
-          
-          Alert.alert(
-            "Login Successful",
-            `Signed in as ${roleDisplayName}.`
-          );
-
-        } else {
-          throw new Error(response.message || 'Login failed after MFA verification');
-        }
-      } else {
-        throw new Error('Invalid verification code');
-      }
-    } catch (err) {
-      Alert.alert("Verification Failed", err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // --- Other helper functions (unchanged) ---
-  const handleResendCode = async () => {
-    setLoading(true);
-    try {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const newCode = generateMockCode();
-      setMockCode(newCode);
-      console.log(`MOCK EMAIL: Your new verification code is ${newCode}`);
-      Alert.alert("Code Sent", "New verification code sent! Check console for development mode.");
-    } catch (err) {
-      Alert.alert("Error", "Failed to resend code");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // ------------------------------------------------------------
+  // ✅ Helper: Mask email for messages
   const maskEmail = (email) => {
     if (!email) return "";
-    const [local, domain] = email.split('@');
+    const [local, domain] = email.split("@");
     if (!local || !domain) return email;
-    const maskedLocal = local.slice(0, 2) + '*'.repeat(local.length - 2);
+    const maskedLocal = local.slice(0, 2) + "*".repeat(local.length - 2);
     return `${maskedLocal}@${domain}`;
   };
 
-  const handleBackToLogin = () => {
-    setStep(1);
-    setMfaCode("");
-  };
-
+  // ------------------------------------------------------------
+  // ✅ Helper: Forgot password
   const handleForgotPassword = async () => {
     if (!email) {
       Alert.alert("Missing Email", "Please enter your registered email first.");
@@ -145,32 +43,77 @@ export default function LoginScreen({ navigation }) {
     setLoading(true);
     try {
       await forgotPassword(email);
-      Alert.alert("Check Your Inbox", "Password reset link sent!");
-      console.log("Password reset requested for:", email);
-    } catch (error) {
+      Alert.alert("Check Your Inbox", `Password reset link sent to ${maskEmail(email)}`);
+    } catch (err) {
       Alert.alert("Error", "Unable to process request.");
     } finally {
       setLoading(false);
     }
   };
 
-  // --- JSX Render (unchanged) ---
+  // ------------------------------------------------------------
+  // 🔥 REAL LOGIN → triggers MFA
+  const handleLoginPress = async () => {
+    if (!email || !password) {
+      Alert.alert("Missing Fields", "Please enter both email and password.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await loginUser(email, password);
+
+      console.log("[LoginScreen] Login response:", response);
+
+      if (!response.success) {
+        setLoading(false);
+
+        // handle inactive account properly
+        if (response.code === "ACCOUNT_INACTIVE") {
+          Alert.alert(
+            "Account Deactivated",
+            "Your account has been deactivated. Please contact the administrator."
+          );
+          return;
+        }
+
+        // Other errors
+        Alert.alert("Login Failed", response.message || "Invalid credentials");
+        return;
+      }
+
+      // 🔥 navigate to MFA screen with challenge_id
+      navigation.navigate("MFA", {
+        challenge_id: response.challenge_id,
+        email: email,
+        role_name: response.role_name,
+        user_id: response.user_id
+      });
+
+
+    } catch (err) {
+      console.log("Login error:", err);
+      Alert.alert("Login Error", err.message || "Server error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <ImageBackground
-      source={require("../../assets/signup-bg.jpg")} 
+      source={require("../../assets/signup-bg.jpg")}
       style={styles.background}
     >
       <View style={styles.overlay}>
         <Image
-          source={require("../../assets/logo.jpg")} 
+          source={require("../../assets/logo.jpg")}
           style={styles.logo}
         />
-        <Text style={styles.title}>Welcome Back!</Text>
-        <Text style={styles.subtitle}>
-          Join us today and explore our amazing features!
-        </Text>
 
-        {/* Buttons to switch between Sign Up / Login */}
+        <Text style={styles.title}>Welcome Back!</Text>
+        <Text style={styles.subtitle}>Login to continue</Text>
+
         <View style={styles.switchButtons}>
           <TouchableOpacity
             style={styles.switchButton}
@@ -178,170 +121,89 @@ export default function LoginScreen({ navigation }) {
           >
             <Text style={styles.switchText}>Sign Up</Text>
           </TouchableOpacity>
+
           <TouchableOpacity style={[styles.switchButton, styles.activeButton]}>
-            <Text style={[styles.switchText, styles.activeText]}>Login</Text>
+            <Text style={[styles.switchText, styles.activeText]}>
+              Login
+            </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Step 1 - Credentials Form */}
-        {step === 1 && (
-          <View style={styles.formContainer}>
-            {/* Email Field */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Email</Text>
+        <View style={styles.formContainer}>
+          {/* EMAIL */}
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your email"
+              placeholderTextColor="#ccc"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+          </View>
+
+          {/* PASSWORD */}
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Password</Text>
+            <View style={styles.passwordContainer}>
               <TextInput
-                style={styles.input}
-                placeholder="Enter your email"
+                style={[styles.input, { flex: 1 }]}
+                placeholder="Enter your password"
                 placeholderTextColor="#ccc"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
               />
-            </View>
-
-            {/* Password Field */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Password</Text>
-              <View style={styles.passwordContainer}>
-                <TextInput
-                  style={[styles.input, { flex: 1 }]}
-                  placeholder="Enter your password"
-                  placeholderTextColor="#ccc"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={styles.iconButton}
-                >
-                  <Ionicons
-                    name={showPassword ? "eye-off" : "eye"}
-                    size={20}
-                    color="#ccc"
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Remember Me & Forgot Password */}
-            <View style={styles.rowContainer}>
               <TouchableOpacity
-                style={styles.rememberContainer}
-                onPress={() => setRememberMe(!rememberMe)}
+                onPress={() => setShowPassword(!showPassword)}
+                style={styles.iconButton}
               >
+                <Ionicons
+                  name={showPassword ? "eye-off" : "eye"}
+                  size={20}
+                  color="#ccc"
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* REMEMBER ME + FORGOT */}
+          <View style={styles.rowContainer}>
+            <TouchableOpacity
+              onPress={() => setRememberMe(!rememberMe)}
+              style={styles.rememberContainer}
+            >
               <Ionicons
                 name={rememberMe ? "checkbox" : "square-outline"}
                 size={22}
                 color={rememberMe ? "#4CAF50" : "#ccc"}
               />
               <Text style={styles.rememberText}>Remember me</Text>
-              </TouchableOpacity>
+            </TouchableOpacity>
 
-              <TouchableOpacity onPress={handleForgotPassword}>
-                <Text style={styles.forgotText}>Forgot Password?</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Login Button */}
-            <TouchableOpacity
-              style={styles.loginButton}
-              onPress={handleCredentialsSubmit}
-              disabled={loading}
-            >
-              <Text style={styles.loginButtonText}>
-                {loading ? "Loading..." : "Login"}
-              </Text>
+            <TouchableOpacity onPress={handleForgotPassword}>
+              <Text style={styles.forgotText}>Forgot Password?</Text>
             </TouchableOpacity>
           </View>
-        )}
-        
-        {/* Step 2 - MFA Verification */}
-        {step === 2 && (
-          <View style={styles.formContainer}>
-            <View style={styles.mfaHeader}>
-              <View style={styles.mfaIconContainer}>
-                <Ionicons name="mail" size={40} color="#fff" />
-              </View>
-              <Text style={styles.mfaTitle}>Email Verification</Text>
-              <Text style={styles.mfaSubtitle}>
-                We sent a 6-digit code to{"\n"}
-                <Text style={styles.emailHighlight}>{maskEmail(userEmail)}</Text>
-              </Text>
-              <Text style={styles.mfaHint}>
-                Check your email and enter the code below
-              </Text>
-              
-              {/* Mock code display */}
-              <View style={styles.mockCodeDisplay}>
-                <Text style={styles.mockTitle}>DEVELOPMENT MODE</Text>
-                <Text style={styles.mockCodeText}>
-                  Your verification code is: <Text style={styles.codeHighlight}>{mockCode}</Text>
-                </Text>
-                <Text style={styles.mockNote}>(In production, this would be sent to your email)</Text>
-              </View>
-            </View>
 
-            {/* MFA Code Input */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>6-Digit Code</Text>
-              <TextInput
-                style={styles.codeInput}
-                placeholder="123456"
-                placeholderTextColor="#ccc"
-                value={mfaCode}
-                onChangeText={(text) => setMfaCode(text.replace(/\D/g, '').slice(0, 6))}
-                keyboardType="number-pad"
-                maxLength={6}
-                autoFocus={true}
-              />
-            </View>
-
-            {/* MFA Action Buttons */}
-            <View style={styles.mfaButtonGroup}>
-              <TouchableOpacity 
-                style={styles.backButton}
-                onPress={handleBackToLogin}
-                disabled={loading}
-              >
-                <Text style={styles.backButtonText}>Back</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[
-                  styles.verifyButton,
-                  (loading || mfaCode.length !== 6) && styles.buttonDisabled
-                ]}
-                onPress={handleMFASubmit}
-                disabled={loading || mfaCode.length !== 6}
-              >
-                <Text style={styles.verifyButtonText}>
-                  {loading ? "Verifying..." : "Verify Code"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Resend Code Option */}
-            <View style={styles.resendContainer}>
-              <Text style={styles.resendText}>
-                Didn't receive the code?
-              </Text>
-              <TouchableOpacity 
-                onPress={handleResendCode}
-                disabled={loading}
-              >
-                <Text style={styles.resendButton}>Resend Code</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
+          {/* LOGIN BUTTON */}
+          <TouchableOpacity
+            style={styles.loginButton}
+            onPress={handleLoginPress}
+            disabled={loading}
+          >
+            <Text style={styles.loginButtonText}>
+              {loading ? "Checking..." : "Login"}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </ImageBackground>
   );
 }
 
-// (Styles are unchanged)
 const styles = StyleSheet.create({
   background: {
     flex: 1,
