@@ -3,7 +3,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import api from '../../../services/api';
+import {
+  approveObservation,
+  confirmExistingSpecies,
+  confirmNewSpecies,
+  rejectObservation,
+  fetchAllSpecies,    
+} from '../../../services/api';
+// import * as servicesApi from '../services/api';
+import { Picker } from '@react-native-picker/picker';
 
 // const formatDate = (iso) => {
 //   const date = new Date(iso);
@@ -18,13 +26,11 @@ const formatDate = (iso) => {
 };
 
 const formatCoords = (lat, lon) => {
-  // if either value is null or undefined
   if (lat == null || lon == null) return 'Not available';
 
   const nLat = Number(lat);
   const nLon = Number(lon);
 
-  // if they cannot be converted to numbers
   if (!Number.isFinite(nLat) || !Number.isFinite(nLon)) {
     return 'Not available';
   }
@@ -34,9 +40,30 @@ const formatCoords = (lat, lon) => {
     return 'Not available';
   }
 
-  // show 5 decimal places
   return `${nLat.toFixed(5)}, ${nLon.toFixed(5)}`;
 };
+
+const normalizeScientificName = (input) => {
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_') // spaces → underscore
+    .replace(/[^a-z_]/g, '') // strip non letters / underscores
+    .replace(/_+/g, '_'); // collapse multiple underscores
+};
+
+// const openIdentify = async () => {
+//   setIdentifyVisible(true);
+//   try {
+//     if (!speciesOptions.length) {
+//       const list = await servicesApi.fetchSpeciesList();
+//       setSpeciesOptions(list || []);
+//     }
+//   } catch (err) {
+//     console.error('[Identify] failed to load species list', err);
+//     Alert.alert('Error', 'Failed to load species list');
+//   }
+// };
 
 export default function AdminFlagReviewScreen({ route, navigation }) {
   const observation = route?.params?.observation;
@@ -46,6 +73,7 @@ export default function AdminFlagReviewScreen({ route, navigation }) {
 
   const [mode, setMode] = useState('existing'); // 'existing' | 'new'
   const [selectedSpeciesId, setSelectedSpeciesId] = useState(null);
+  const [speciesOptions, setSpeciesOptions] = useState([]);
 
   const [newScientificName, setNewScientificName] = useState('');
   const [newCommonName, setNewCommonName] = useState('');
@@ -63,9 +91,7 @@ export default function AdminFlagReviewScreen({ route, navigation }) {
   const handleApprove = async () => {
     try {
       console.log(`Approving observation ${observation.observation_id}...`);
-
-      // Call the new PATCH endpoint
-      await api.put(`/plant-observations/${observation.observation_id}`, { status: 'verified' });
+      await approveObservation(observation.observation_id);
       
       Alert.alert('Success', 'Observation approved', [
         { text: 'OK', onPress: () => navigation.goBack() }
@@ -76,52 +102,62 @@ export default function AdminFlagReviewScreen({ route, navigation }) {
     }
   };
 
-  const handleIdentify = async (newSpeciesName) => {
-    try {
-      console.log(`Re-identifying observation ${observation.observation_id} as ${newSpeciesName}...`);
-      await api.put(`/plant-observations/${observation.observation_id}`, {
-        status: 'verified',
-        species_name: newSpeciesName,
-        notes: `Re-identified as: ${newSpeciesName}`,
-      });
+  const handleReject = () => {
+    Alert.alert(
+      'Reject observation',
+      'Are you sure you want to reject this observation?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log(
+                `Rejecting observation ${observation.observation_id}...`
+              );
+              await rejectObservation(observation.observation_id);
 
-      setIdentifyVisible(false);
-      Alert.alert('Success', 'Observation updated with new identification', [
-          { text: 'OK', onPress: () => navigation.goBack() }
-      ]);
-    } catch (error) {
-      console.error('Identify error:', error);
-      Alert.alert('Error', 'Could not update identification');
-    }
+              Alert.alert('Rejected', 'Observation rejected', [
+                { text: 'OK', onPress: () => navigation.goBack() },
+              ]);
+            } catch (error) {
+              console.error('Reject error:', error);
+              Alert.alert('Error', 'Could not reject observation');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleConfirmNewSpecies = async () => {
     try {
-      if (!newScientificName.trim()) {
+      const raw = newScientificName.trim();
+      if (!raw) {
         Alert.alert('Missing name', 'Scientific name is required for a new species.');
         return;
       }
 
+      const normalized = normalizeScientificName(raw);
+
       console.log(
-        `Confirming NEW species for observation ${observation.observation_id} as ${newScientificName}...`
+        `Confirming NEW species for observation ${observation.observation_id} as ${normalized}...`
       );
 
-      await api.post(
-        `/api/admin/observations/${observation.observation_id}/confirm-new`,
-        {
-          scientific_name: newScientificName.trim(),
-          common_name: newCommonName.trim(),
-          is_endangered: newIsEndangered ? 1 : 0,
-          description: newDescription.trim(),
-        }
-      );
+      await confirmNewSpecies(observation.observation_id, {
+        scientific_name: normalized,
+        common_name: newCommonName.trim(),
+        is_endangered: newIsEndangered ? 1 : 0,
+        description: newDescription.trim(),
+      });
 
       setIdentifyVisible(false);
       Alert.alert('Success', 'New species added and observation updated', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (error) {
-      console.error('Confirm new species error:', error.response?.data || error.message);
+      console.error('Confirm new species error:', error);
       Alert.alert('Error', 'Could not save new species');
     }
   };
@@ -129,59 +165,81 @@ export default function AdminFlagReviewScreen({ route, navigation }) {
   const handleConfirmExistingSpecies = async () => {
     try {
       const name = identifiedName.trim();
-      if (!name) {
-        Alert.alert('Missing name', 'Please enter a species name.');
+
+      if (!selectedSpeciesId && !name) {
+        Alert.alert(
+          'Missing species',
+          'Please select an existing species or type the scientific name.'
+        );
         return;
       }
 
+      const payload = {};
+      if (selectedSpeciesId) {
+        payload.species_id = selectedSpeciesId;
+      }
+      if (name) {
+        payload.scientific_name = name;
+      }
+
       console.log(
-        `Confirming EXISTING species for observation ${observation.observation_id} as ${name}...`
+        `Confirming EXISTING species for observation ${observation.observation_id} with`,
+        payload
       );
 
-      await api.post(
-        `/api/admin/observations/${observation.observation_id}/confirm-existing`,
-        {
-          scientific_name: name,
-        }
-      );
+      await confirmExistingSpecies(observation.observation_id, payload);
 
       setIdentifyVisible(false);
       Alert.alert('Success', 'Observation linked to species', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (error) {
-      console.error(
-        'Confirm existing species error:',
-        error.response?.data || error.message
-      );
+      console.error('Confirm existing species error:', error);
       Alert.alert('Error', 'Could not confirm existing species');
     }
   };
 
-  const formatCoords = (lat, lon) => {
-    if (lat == null || lon == null) return 'Not available';
+  const openIdentify = async () => {
+    try {
+      setIdentifiedName('');
+      setSelectedSpeciesId(null);
 
-    const nLat = Number(lat);
-    const nLon = Number(lon);
+      if (!speciesOptions.length) {
+        const list = await fetchAllSpecies();
+        setSpeciesOptions(list);
+      }
 
-    if (!Number.isFinite(nLat) || !Number.isFinite(nLon)) {
-      return 'Not available';
+      setIdentifyVisible(true);
+    } catch (err) {
+      console.error('[Identify] failed to load species list', err);
+      Alert.alert(
+        'Error',
+        'Could not load species list. You can still type the name manually.'
+      );
+      setIdentifyVisible(true);
     }
-
-    // treat 0,0 as "no location"
-    if (nLat === 0 && nLon === 0) {
-      return 'Not available';
-    }
-
-    return `${nLat.toFixed(5)}, ${nLon.toFixed(5)}`;
   };
+
+  const existingTabDisabled =
+    !selectedSpeciesId && !identifiedName.trim();
+  const newTabDisabled = !newScientificName.trim();
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        <TouchableOpacity activeOpacity={0.9} onPress={() => setShowImage(true)}>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={() => setShowImage(true)}
+        >
           <View style={styles.photoWrapper}>
-            <Image source={typeof observation.photo === 'string' ? { uri: observation.photo } : observation.photo} style={styles.photo} />
+            <Image
+              source={
+                typeof observation.photo === 'string'
+                  ? { uri: observation.photo }
+                  : observation.photo
+              }
+              style={styles.photo}
+            />
             <View style={styles.resizeBadge}>
               <Ionicons name="expand-outline" size={18} color="#FFFFFF" />
             </View>
@@ -189,11 +247,15 @@ export default function AdminFlagReviewScreen({ route, navigation }) {
         </TouchableOpacity>
 
         <Text style={styles.title}>{observation.plant_name}</Text>
-        <Text style={styles.subtitle}>Observation {observation.observation_id}</Text>
+        <Text style={styles.subtitle}>
+          Observation {observation.observation_id}
+        </Text>
 
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Confidence</Text>
-          <Text style={styles.sectionValue}>{Math.round(observation.confidence * 100)}%</Text>
+          <Text style={styles.sectionValue}>
+            {Math.round(observation.confidence * 100)}%
+          </Text>
         </View>
 
         <View style={styles.section}>
@@ -206,49 +268,61 @@ export default function AdminFlagReviewScreen({ route, navigation }) {
           </Text>
         </View>
 
-
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Submitted</Text>
-          <Text style={styles.sectionValue}>{formatDate(observation.submitted_at)}</Text>
-          <Text style={styles.sectionMeta}>Flagged by {observation.user}</Text>
+          <Text style={styles.sectionValue}>
+            {formatDate(observation.submitted_at)}
+          </Text>
+          <Text style={styles.sectionMeta}>
+            Flagged by {observation.user}
+          </Text>
         </View>
 
         <View style={styles.actionsRow}>
+          <TouchableOpacity style={styles.rejectButton} onPress={handleReject}>
+            <Text style={styles.rejectText}>REJECT</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.approveButton}
-            activeOpacity={0.85}
-            onPress={() =>
-              Alert.alert(
-                'Approve Observation',
-                'Confirm this observation is valid?',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Approve', onPress: handleApprove },
-                ],
-                { cancelable: true }
-              )
-            }
+            onPress={handleApprove}
           >
-            <Text style={styles.approveText}>Approve</Text>
+            <Text style={styles.approveText}>APPROVE</Text>
           </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.identifyButton}
-            activeOpacity={0.85}
-            onPress={() => {
-              setIdentifiedName('');
-              setIdentifyVisible(true);
-            }}
+            onPress={openIdentify}
           >
-            <Text style={styles.identifyText}>Identify</Text>
+            <Text style={styles.identifyText}>IDENTIFY</Text>
           </TouchableOpacity>
         </View>
 
         {/* Image Modal */}
-        <Modal visible={showImage} transparent animationType="fade" onRequestClose={() => setShowImage(false)}>
+        <Modal
+          visible={showImage}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowImage(false)}
+        >
           <View style={styles.modalOverlay}>
-            <TouchableOpacity style={styles.modalCloseArea} onPress={() => setShowImage(false)} />
-            <Image source={typeof observation.photo === 'string' ? { uri: observation.photo } : observation.photo} style={styles.modalImage} resizeMode="contain" />
-            <TouchableOpacity style={styles.modalDismiss} onPress={() => setShowImage(false)}>
+            <TouchableOpacity
+              style={styles.modalCloseArea}
+              onPress={() => setShowImage(false)}
+            />
+            <Image
+              source={
+                typeof observation.photo === 'string'
+                  ? { uri: observation.photo }
+                  : observation.photo
+              }
+              style={styles.modalImage}
+              resizeMode="contain"
+            />
+            <TouchableOpacity
+              style={styles.modalDismiss}
+              onPress={() => setShowImage(false)}
+            >
               <Text style={styles.modalDismissText}>Close</Text>
             </TouchableOpacity>
           </View>
@@ -263,7 +337,6 @@ export default function AdminFlagReviewScreen({ route, navigation }) {
         >
           <View style={styles.modalOverlay}>
             <KeyboardAvoidingView
-              // only actively avoid keyboard on iOS, Android will just resize normally
               behavior={Platform.OS === 'ios' ? 'padding' : undefined}
               keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
               style={styles.identifyWrapper}
@@ -274,18 +347,26 @@ export default function AdminFlagReviewScreen({ route, navigation }) {
                 keyboardShouldPersistTaps="handled"
               >
                 <View style={styles.identifyCard}>
-          
-                  <Text style={styles.identifyTitle}>Confirm Plant Identity</Text>
+                  <Text style={styles.identifyTitle}>
+                    Confirm Plant Identity
+                  </Text>
+
                   <View style={styles.toggleRow}>
                     <TouchableOpacity
-                      style={[styles.toggleBtn, mode === 'existing' && styles.toggleBtnActive]}
+                      style={[
+                        styles.toggleBtn,
+                        mode === 'existing' && styles.toggleBtnActive,
+                      ]}
                       onPress={() => setMode('existing')}
                     >
                       <Text style={styles.toggleText}>Existing species</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                      style={[styles.toggleBtn, mode === 'new' && styles.toggleBtnActive]}
+                      style={[
+                        styles.toggleBtn,
+                        mode === 'new' && styles.toggleBtnActive,
+                      ]}
                       onPress={() => setMode('new')}
                     >
                       <Text style={styles.toggleText}>New species</Text>
@@ -294,15 +375,53 @@ export default function AdminFlagReviewScreen({ route, navigation }) {
 
                   {mode === 'existing' && (
                     <>
-                      <Text style={styles.identifyLabel}>Plant Name</Text>
+                      <Text style={styles.identifyLabel}>
+                        Select existing species
+                      </Text>
+                      <View style={styles.pickerWrapper}>
+                        <Picker
+                          selectedValue={selectedSpeciesId}
+                          onValueChange={(value) => {
+                            setSelectedSpeciesId(value);
+
+                            const selected = speciesOptions.find(
+                              s => s.species_id === value
+                            );
+
+                            // when user picks an existing species, also set the scientific name
+                            if (selected && selected.scientific_name) {
+                              setIdentifiedName(selected.scientific_name);
+                            }
+                          }}
+                        >
+                          <Picker.Item label="Select a species..." value={null} />
+
+                          {speciesOptions.map(s => (
+                            <Picker.Item
+                              key={s.species_id}
+                              // show something human readable, like in AdminIotScreen
+                              label={
+                                s.display_name ||
+                                s.scientific_name ||
+                                s.common_name ||
+                                `Species ${s.species_id}`
+                              }
+                              // value is the ID, which is what the backend wants
+                              value={s.species_id}
+                            />
+                          ))}
+                        </Picker>
+                      </View>
+
+                      <Text style={styles.identifyLabel}>
+                        Or type scientific name
+                      </Text>
                       <TextInput
                         style={styles.identifyInput}
                         value={identifiedName}
                         onChangeText={setIdentifiedName}
-                        placeholder="Enter confirmed plant name"
+                        placeholder="e.g. casuarina_equisetifolia"
                         placeholderTextColor="#94A3B8"
-                        autoFocus
-                        returnKeyType="done"
                       />
                     </>
                   )}
@@ -314,7 +433,7 @@ export default function AdminFlagReviewScreen({ route, navigation }) {
                         style={styles.identifyInput}
                         value={newScientificName}
                         onChangeText={setNewScientificName}
-                        placeholder="e.g. casuarina_equisetifolia"
+                        placeholder="e.g. Casuarina equisetifolia"
                         placeholderTextColor="#94A3B8"
                       />
 
@@ -355,24 +474,24 @@ export default function AdminFlagReviewScreen({ route, navigation }) {
                     >
                       <Text style={styles.cancelText}>Cancel</Text>
                     </TouchableOpacity>
+
                     <TouchableOpacity
                       style={[
                         styles.confirmButton,
-                        mode === 'existing'
-                          ? !identifiedName && styles.confirmButtonDisabled
-                          : !newScientificName && styles.confirmButtonDisabled,
+                        (mode === 'existing' && existingTabDisabled) ||
+                        (mode === 'new' && newTabDisabled)
+                          ? styles.confirmButtonDisabled
+                          : null,
                       ]}
                       disabled={
                         mode === 'existing'
-                          ? !identifiedName
-                          : !newScientificName
+                          ? existingTabDisabled
+                          : newTabDisabled
                       }
                       onPress={() => {
                         if (mode === 'existing') {
-                          // existing behaviour
                           handleConfirmExistingSpecies();
                         } else {
-                          // new species path – this will hit your /confirm-new endpoint
                           handleConfirmNewSpecies();
                         }
                       }}
@@ -385,7 +504,6 @@ export default function AdminFlagReviewScreen({ route, navigation }) {
             </KeyboardAvoidingView>
           </View>
         </Modal>
-        
       </ScrollView>
     </SafeAreaView>
   );
@@ -458,7 +576,22 @@ const styles = StyleSheet.create({
   },
   actionsRow: {
     flexDirection: 'row',
-    gap: 12,
+    marginTop: 24,
+    gap: 8,
+  },
+  rejectButton: {
+    flex: 1,
+    backgroundColor: '#B3261E',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  rejectText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   approveButton: {
     flex: 1,
@@ -634,5 +767,11 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 80,
     textAlignVertical: 'top',
+  },
+  pickerWrapper: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    marginBottom: 12,
   },
 });
