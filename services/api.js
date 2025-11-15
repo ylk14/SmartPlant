@@ -1,7 +1,7 @@
 // api.js
 // All backend API connection functions are stored here
 
-const API_BASE_URL = "http://192.168.88.39:3000/api"; 
+const API_BASE_URL = "http://10.0.2.2:5000/api"; 
 // 🔧 Backend team: replace with your actual base URL later
 
 // ======================
@@ -11,6 +11,18 @@ const MOCK_ACCOUNTS = {
   "admin@smartplant.dev": { password: "admin123", role: "admin" },
   "ranger@smartplant.dev": { password: "user1234", role: "user" },
 };
+
+// --- HELPER FUNCTION ---
+// Handles errors from the API
+async function handleResponse(response) {
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({})); // Try to parse error, or return empty object
+    const errorMessage = errorData.error || `HTTP error! status: ${response.status}`;
+    console.error('API Error:', errorMessage);
+    throw new Error(errorMessage);
+  }
+  return response.json();
+}
 
 //mock version for testing
 export const loginUser = async (email, password) => {
@@ -221,18 +233,20 @@ export const fetchDeviceHistory = async (deviceId, rangeKey) => {
   }
 };
 
-export const fetchSpeciesList = async () => {
+export const fetchSpecies = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/species/all`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch species list');
-    }
-    return await response.json();
+    const response = await fetch(`${API_BASE_URL}/species`);
+    const json = await response.json();
+
+    // If backend returns { success, data }
+    return json.data;    
+
   } catch (error) {
-    console.error("Error fetching species list:", error);
+    console.error("Error fetching species:", error);
     throw error;
   }
 };
+
 
 // ⬇️ *** ADD THIS FUNCTION *** ⬇️
 export const addNewDevice = async (deviceData) => {
@@ -255,3 +269,36 @@ export const addNewDevice = async (deviceData) => {
     throw error;
   }
 };
+
+export const fetchUserProfile = async (userId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/profile`);
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Error fetching user profile:", error);
+    throw error;
+  }
+};
+
+// (ProfileScreen) Fetches all posts for a specific user
+export const fetchUserPosts = async (userId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/posts`);
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Error fetching user posts:", error);
+    throw error;
+  }
+};
+
+export const fetchObservationsBySpecies = async (speciesId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/observations/species/${speciesId}`);
+    const json = await response.json();
+    return json;   // must return { success, data: [...] }
+  } catch (error) {
+    console.error("Error fetching observations by species:", error);
+    throw error;
+  }
+};
+
