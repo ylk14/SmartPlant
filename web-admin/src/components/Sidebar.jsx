@@ -13,8 +13,11 @@ import LogoutIcon from "@mui/icons-material/Logout";
 export default function Sidebar({ user, onLogout }) {
   const location = useLocation();
 
-  // 2. 👈 --- Check the user's role ---
-  const isAdmin = user?.role_name === 'admin';
+  // 2. 👈 --- Check the user's role (case-insensitive + fallback to role_id) ---
+  const normalizedRole = typeof user?.role_name === "string"
+    ? user.role_name.trim().toLowerCase()
+    : "";
+  const isAdmin = normalizedRole === "admin" || user?.role_id === 1;
 
   const allMenuItems = [
     { path: "/dashboard", label: "Dashboard", icon: <DashboardIcon /> },
