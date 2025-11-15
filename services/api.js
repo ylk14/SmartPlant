@@ -1,7 +1,6 @@
-import { Platform } from 'react-native';
-
 const PORT = 3000;
-const HOST = '192.168.0.113';
+const HOST = '192.168.0.112';
+// const HOST = '172.17.26.48';
 export const API_BASE_URL = `http://${HOST}:${PORT}/api`;
 
 // --- HELPER FUNCTION ---
@@ -239,6 +238,8 @@ export const fetchObservationsBySpecies = async (speciesId) => {
   }
 };
 
+export const fetchAllSpecies = fetchSpeciesList;
+
 export const addNewDevice = async (deviceData) => {
   try {
     const response = await fetch(`${API_BASE_URL}/devices/add`, {
@@ -276,3 +277,93 @@ export const fetchUserPosts = async (userId) => {
     throw error;
   }
 };
+
+// AI Functions 
+export async function flagObservationUnsure(observationId, payload = {}) {
+  const res = await fetch(
+    `${API_BASE_URL}/admin/observations/${observationId}/flag-unsure`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }
+  );
+  return handleResponse(res);
+}
+
+export async function confirmObservationLooksCorrect(observationId, payload = {}) {
+  const res = await fetch(
+    `${API_BASE_URL}/admin/observations/${observationId}/verify`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }
+  );
+  return handleResponse(res);
+}
+
+export async function fetchPendingObservations(page = 1, pageSize = 100) {
+  const url =
+    `${API_BASE_URL}/admin/observations` +
+    `?status=pending&page=${page}&page_size=${pageSize}`;
+
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`HTTP error! status: ${res.status}`);
+  }
+  return res.json();  // { page, page_size, data, next_page, ... }
+}
+
+export async function approveObservation(id) {
+  const res = await fetch(`${API_BASE_URL}/admin/observations/${id}/verify`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  return handleResponse(res);   // throws nice error if not ok
+}
+
+export async function rejectObservation(id) {
+  const res = await fetch(`${API_BASE_URL}/admin/observations/${id}/reject`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  return handleResponse(res);
+}
+
+export async function confirmExistingSpecies(observationId, payload) {
+  const body = {};
+  if (payload?.species_id != null) {
+    body.species_id = payload.species_id;
+  }
+  if (payload?.scientific_name) {
+    body.scientific_name = payload.scientific_name;
+  }
+
+  const res = await fetch(
+    `${API_BASE_URL}/admin/observations/${observationId}/confirm-existing`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }
+  );
+  return handleResponse(res);
+}
+
+export async function confirmNewSpecies(observationId, payload) {
+  const res = await fetch(
+    `${API_BASE_URL}/admin/observations/${observationId}/confirm-new`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        scientific_name: payload.scientific_name,
+        common_name: payload.common_name,
+        is_endangered: payload.is_endangered,
+        description: payload.description,
+      }),
+    }
+  );
+  return handleResponse(res);
+}
