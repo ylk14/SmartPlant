@@ -1,148 +1,152 @@
-// api.js
-// All backend API connection functions are stored here
+import { Platform } from 'react-native';
 
-const API_BASE_URL = "http://10.0.2.2:5000/api"; 
-// 🔧 Backend team: replace with your actual base URL later
-
-// ======================
-// LOGIN FUNCTION
-// ======================
-const MOCK_ACCOUNTS = {
-  "admin@smartplant.dev": { password: "admin123", role: "admin" },
-  "ranger@smartplant.dev": { password: "user1234", role: "user" },
-};
+const PORT = 3000;
+const HOST = '192.168.1.5';
+export const API_BASE_URL = `http://${HOST}:${PORT}/api`;
 
 // --- HELPER FUNCTION ---
-// Handles errors from the API
+// Handles errors and parsing for all API calls
 async function handleResponse(response) {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({})); // Try to parse error, or return empty object
-    const errorMessage = errorData.error || `HTTP error! status: ${response.status}`;
+    const errorMessage = errorData.message || `HTTP error! status: ${response.status}`;
     console.error('API Error:', errorMessage);
     throw new Error(errorMessage);
   }
-  return response.json();
+  // return empty object if no content
+  const contentType = response.headers.get("content-type");
+  if (contentType && contentType.indexOf("application/json") !== -1) {
+    return response.json();
+  } else {
+    return {}; 
+  }
 }
 
-//mock version for testing
-export const loginUser = async (email, password) => {
-  const key = email.trim().toLowerCase();
-  console.log("Logging in:", key);
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      const account = MOCK_ACCOUNTS[key];
-      if (account && account.password === password) {
-        resolve({ success: true, role: account.role, email: key });
-      } else {
-        reject(new Error("Invalid email or password"));
-      }
-    }, 700);
-  });
-};
+// ===================================================================
+//                       ADMIN — USERS (POST-only)
+// ===================================================================
 
-//handle MFA
-export const verifyMFA = async (userId, code) => {
-  // This would call your actual backend
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({ success: true });
-    }, 1000);
-  });
-};
-
-export const resendMFACode = async (userId) => {
-  // This would call your actual backend
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({ success: true });
-    }, 1000);
-  });
-};
-
-//remove mock and use this real one
-//export const loginUser = async (email, password) => {
-  //try {
-    //const response = await fetch(`${API_BASE_URL}/login`, {
-      //method: "POST",
-      //headers: {
-        //"Content-Type": "application/json",
-      //},
-      //body: JSON.stringify({ email, password }),
-    //});
-
-    //if (!response.ok) {
-      //throw new Error("Login failed. Please check your credentials.");
-    //}
-
-    //const data = await response.json();
-    //return data; // backend should return something like { success: true, token: "..." }
-  //} catch (error) {
-    //console.error("Login API error:", error);
-    //throw error;
-  //}
-//};
-
-// ======================
-// SIGN UP FUNCTION
-// ======================
-// Temporary mock backend
-//replace the fake version after come out with the real one
-export const registerUser = async (userData) => { 
-  console.log("Registering user:", userData);
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      // Simulate success if email not already “taken”
-      if (userData.email !== "taken@example.com") {
-        resolve({ success: true });
-      } else {
-        reject(new Error("Email already registered"));
-      }
-    }, 1000);
-  });
-};
-
-//replace the api url after this and remove the mock version above
-//export const registerUser = async (userData) => {
-  //try {
-    //const response = await fetch(`${API_BASE_URL}/register`, {
-      //method: "POST",
-      //headers: {
-        //"Content-Type": "application/json",
-      //},
-      //body: JSON.stringify(userData),
-    //});
-
-    //if (!response.ok) {
-      //throw new Error("Failed to register. Please try again.");
-    //}
-
-    //const data = await response.json();
-    //return data;
-  //} catch (error) {
-    //console.error("Register API error:", error);
-    //throw error;
-  //}
-//};
-
-// ======================
-// FORGOT PASSWORD FUNCTION
-// ======================
-export const forgotPassword = async (email) => {
+export const fetchAdminUsers = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/forgot-password`, {
+    const response = await fetch(`${API_BASE_URL}/admin/users/list`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email }),
+      headers: { "Content-Type": "application/json" },
     });
 
-    if (!response.ok) {
-      throw new Error("Failed to send reset link.");
-    }
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Fetch admin users error:", error);
+    throw error;
+  }
+};
 
-    const data = await response.json();
-    return data;
+export const fetchAdminUserById = async (user_id) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/users/get`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id }),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Fetch admin user error:", error);
+    throw error;
+  }
+};
+
+export const updateAdminUser = async (payload) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/users/update`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Update admin user error:", error);
+    throw error;
+  }
+};
+
+// ===================================================================
+//                       ADMIN — ROLES (POST-only)
+// ===================================================================
+
+export const fetchRoles = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/roles/list`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Fetch roles error:", error);
+    throw error;
+  }
+};
+
+// ======================
+// MFA FUNCTIONS (NO SECURITY)
+// ======================
+
+export const postVerifyMfa = async (challenge_id, otp) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/mfa/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ challenge_id, otp }),
+    });
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Error in postVerifyMfa:", error);
+    throw error;
+  }
+};
+
+// ======================
+// AUTH FUNCTIONS (NO SECURITY)
+// ======================
+
+export const loginUser = async (email, password) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    // Use handleResponse for login
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Login API error:", error);
+    throw error;
+  }
+};
+
+export const registerUser = async (userData) => { 
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(userData), // { username, email, password }
+    });
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Register API error:", error);
+    throw error;
+  }
+};
+
+export const forgotPassword = async (email) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/forgot-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    return await handleResponse(response);
   } catch (error) {
     console.error("Forgot Password API error:", error);
     throw error;
@@ -153,12 +157,10 @@ export const forgotPassword = async (email) => {
 // IOT SENSOR FUNCTIONS
 // ======================
 
-// Fetch all sensor readings
 export const fetchSensorData = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/iot/latest`);
-    if (!response.ok) throw new Error("Failed to fetch sensor data");
-    return await response.json();
+    return await handleResponse(response);
   } catch (error) {
     console.error("Error fetching sensor data:", error);
     throw error;
@@ -168,10 +170,7 @@ export const fetchSensorData = async () => {
 export const fetchAllDeviceData = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/devices/all`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch all device data');
-    }
-    return await response.json(); // This will be an array
+    return await handleResponse(response);
   } catch (error) {
     console.error("Error fetching all device data:", error);
     throw error;
@@ -182,18 +181,10 @@ export const postChatMessage = async (query) => {
   try {
     const response = await fetch(`${API_BASE_URL}/chat`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query }),
     });
-
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error || 'Failed to get chat response');
-    }
-    
-    return response.json();
+    return await handleResponse(response);
   } catch (error) {
     console.error("Error in postChatMessage:", error);
     throw error;
@@ -202,17 +193,11 @@ export const postChatMessage = async (query) => {
 
 export const resolveAlertsForDevice = async (deviceId) => {
   try {
-    // Note: deviceId here is the raw ID (e.g., 1, 2)
     const response = await fetch(`${API_BASE_URL}/alerts/resolve/device/${deviceId}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
     });
-    if (!response.ok) {
-      throw new Error('Failed to resolve alerts for device');
-    }
-    return await response.json();
+    return await handleResponse(response);
   } catch (error) {
     console.error("Error resolving alerts for device:", error);
     throw error;
@@ -221,54 +206,41 @@ export const resolveAlertsForDevice = async (deviceId) => {
 
 export const fetchDeviceHistory = async (deviceId, rangeKey) => {
   try {
-    // deviceId is the raw ID (e.g., 1), rangeKey is '1H', '24H', or '7D'
     const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/history?range=${rangeKey}`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch device history');
-    }
-    return await response.json(); // This will be an array of readings
+    return await handleResponse(response);
   } catch (error) {
     console.error("Error fetching device history:", error);
     throw error;
   }
 };
 
-export const fetchSpecies = async () => {
+export const fetchSpeciesList = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/species`);
-    const json = await response.json();
-
-    // If backend returns { success, data }
-    return json.data;    
-
+    const response = await fetch(`${API_BASE_URL}/species/all`);
+    return await handleResponse(response);
   } catch (error) {
-    console.error("Error fetching species:", error);
+    console.error("Error fetching species list:", error);
     throw error;
   }
 };
 
-
-// ⬇️ *** ADD THIS FUNCTION *** ⬇️
 export const addNewDevice = async (deviceData) => {
   try {
     const response = await fetch(`${API_BASE_URL}/devices/add`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(deviceData),
     });
-    
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error || 'Failed to add device');
-    }
-    return await response.json();
+    return await handleResponse(response);
   } catch (error) {
     console.error("Error adding new device:", error);
     throw error;
   }
 };
+
+// ======================
+// USER PROFILE FUNCTIONS
+// ======================
 
 export const fetchUserProfile = async (userId) => {
   try {
@@ -280,7 +252,6 @@ export const fetchUserProfile = async (userId) => {
   }
 };
 
-// (ProfileScreen) Fetches all posts for a specific user
 export const fetchUserPosts = async (userId) => {
   try {
     const response = await fetch(`${API_BASE_URL}/users/${userId}/posts`);
@@ -290,15 +261,3 @@ export const fetchUserPosts = async (userId) => {
     throw error;
   }
 };
-
-export const fetchObservationsBySpecies = async (speciesId) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/observations/species/${speciesId}`);
-    const json = await response.json();
-    return json;   // must return { success, data: [...] }
-  } catch (error) {
-    console.error("Error fetching observations by species:", error);
-    throw error;
-  }
-};
-
