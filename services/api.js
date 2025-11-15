@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 
 const PORT = 3000;
-const HOST = '192.168.88.39';
+const HOST = '192.168.1.5';
 export const API_BASE_URL = `http://${HOST}:${PORT}/api`;
 
 // --- HELPER FUNCTION ---
@@ -21,6 +21,90 @@ async function handleResponse(response) {
     return {}; 
   }
 }
+
+// ===================================================================
+//                       ADMIN — USERS (POST-only)
+// ===================================================================
+
+export const fetchAdminUsers = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/users/list`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Fetch admin users error:", error);
+    throw error;
+  }
+};
+
+export const fetchAdminUserById = async (user_id) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/users/get`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id }),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Fetch admin user error:", error);
+    throw error;
+  }
+};
+
+export const updateAdminUser = async (payload) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/users/update`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Update admin user error:", error);
+    throw error;
+  }
+};
+
+// ===================================================================
+//                       ADMIN — ROLES (POST-only)
+// ===================================================================
+
+export const fetchRoles = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/roles/list`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Fetch roles error:", error);
+    throw error;
+  }
+};
+
+// ======================
+// MFA FUNCTIONS (NO SECURITY)
+// ======================
+
+export const postVerifyMfa = async (challenge_id, otp) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/mfa/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ challenge_id, otp }),
+    });
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Error in postVerifyMfa:", error);
+    throw error;
+  }
+};
 
 // ======================
 // AUTH FUNCTIONS (NO SECURITY)
