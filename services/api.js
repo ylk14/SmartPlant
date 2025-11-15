@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 
 const PORT = 3000;
-const HOST = '192.168.88.39';
+const HOST = '192.168.56.1';
 export const API_BASE_URL = `http://${HOST}:${PORT}/api`;
 
 // --- HELPER FUNCTION ---
