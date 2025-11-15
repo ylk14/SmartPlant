@@ -8,10 +8,14 @@ import SensorsIcon from "@mui/icons-material/Sensors";
 import MapIcon from "@mui/icons-material/Map";
 import FlagIcon from "@mui/icons-material/Flag";
 import LogoutIcon from "@mui/icons-material/Logout";
+import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 
 // 1. 👈 --- Accept the 'user' prop ---
 export default function Sidebar({ user, onLogout }) {
   const location = useLocation();
+
+  // DEBUG: Check what user prop contains
+  console.log("Sidebar user prop:", user);
 
   // 2. 👈 --- Check the user's role ---
   const isAdmin = user?.role_name === 'admin';
@@ -40,6 +44,23 @@ export default function Sidebar({ user, onLogout }) {
       <div className="sidebar-header">
         <h2 className="sidebar-title">Smart Plant</h2>
         <p className="sidebar-subtitle">Admin Portal</p>
+      </div>
+
+      {/* USER PROFILE SECTION - ADDED THIS */}
+      <div className="sidebar-user-profile">
+        <div className="user-profile-header">
+          <div className="user-avatar">
+            {user?.name ? user.username.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2) : "U"}
+          </div>
+          <div className="user-info">
+            <div className="user-name">{user?.username || user?.name || "Loading..."}</div>
+            <div className="user-role">
+              <AdminPanelSettingsIcon className="role-icon" />
+              {user?.role_name ? user.role_name.charAt(0).toUpperCase() + user.role_name.slice(1) : "User"}
+            </div>
+          </div>
+        </div>
+        <div className="user-email">{user?.email || "user@example.com"}</div>
       </div>
 
       <nav className="sidebar-nav">

@@ -19,67 +19,76 @@ const Login = ({ onLogin }) => {
   };
 
   const handleCredentialsSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+  e.preventDefault();
+  setLoading(true);
+  setError('');
 
-    try {
-      const response = await loginUser(email, password);
+  try {
+    const response = await loginUser(email, password);
+    console.log("🔍 [Login.jsx] Full API response:", response); // ADD THIS
 
-      if (response.success) {
-        const user = response.user;
+    if (response.success) {
+      const user = response.user;
+      console.log("🔍 [Login.jsx] User object from API:", user); // ADD THIS
 
-        if (user.role_id === 1 || user.role_id === 2) {
-          setPendingUser(user); 
-          setUserEmail(user.email); 
-          
-          const code = generateMockCode();
-          setMockCode(code);
-          
-          console.log(`🔐 MOCK EMAIL: Your verification code is ${code}`);
-          
-          setStep(2);
-        } else {
-          throw new Error('Access Denied: You do not have permission to access this portal.');
-        }
+      // ENSURE USER HAS A NAME PROPERTY
+      const userWithName = {
+        ...user,
+        name: user.name || "Admin User" // Add default name
+      };
+
+      if (user.role_id === 1 || user.role_id === 2) {
+        setPendingUser(userWithName);
+        setUserEmail(user.email); 
+        
+        const code = generateMockCode();
+        setMockCode(code);
+        
+        console.log(`🔐 MOCK EMAIL: Your verification code is ${code}`);
+        
+        setStep(2);
       } else {
-        // This part might not be reached if the API always throws a 401 on failure
-        throw new Error(response.message);
+        throw new Error('Access Denied: You do not have permission to access this portal.');
       }
-    } catch (err) {
-      // ❗ --- THIS IS THE FIX --- ❗
-      // Check if the error has a response from the backend
-      if (err.response && err.response.data && err.response.data.message) {
-        // Use the specific error message from your API (e.g., "Invalid credentials")
-        setError(err.response.data.message);
-      } else {
-        // Fallback for network errors or other issues
-        setError(err.message || 'An error occurred. Please try again.');
-      }
-    } finally {
-      setLoading(false);
+    } else {
+      throw new Error(response.message);
     }
-  };
-
-  const handleMFASubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      if (mfaCode === mockCode) {
-        onLogin(pendingUser);
-      } else {
-        throw new Error('Invalid verification code');
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+  } catch (err) {
+    if (err.response && err.response.data && err.response.data.message) {
+      setError(err.response.data.message);
+    } else {
+      setError(err.message || 'An error occurred. Please try again.');
     }
-  };
+  } finally {
+    setLoading(false);
+  }
+};
+
+const handleMFASubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setError('');
+
+  try {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    if (mfaCode === mockCode) {
+      console.log("User object before sending to onLogin:", pendingUser); // DEBUG LINE
+      // ENSURE FINAL USER HAS NAME
+      const finalUser = {
+        ...pendingUser,
+        name: pendingUser.name || "Admin User"
+      };
+      onLogin(finalUser);
+    } else {
+      throw new Error('Invalid verification code');
+    }
+  } catch (err) {
+    setError(err.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleResendCode = async () => {
     setLoading(true);

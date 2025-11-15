@@ -45,10 +45,21 @@ export default function App() {
   const isAuthenticated = !!currentUser;
 
   const handleLogin = (userData) => {
-    setCurrentUser(userData);
-    localStorage.setItem('adminUser', JSON.stringify(userData));
-    localStorage.setItem('adminToken', 'mock-token-here');
+  console.log("Login userData:", userData);
+
+  // ENSURE USER HAS REQUIRED PROPERTIES
+  const userWithName = {
+    ...userData,
+    name: userData.name || userData.username || "Admin User", // Add name if missing
+    role_name: userData.role_name || userData.role || "admin" // Ensure role_name exists
   };
+
+  console.log("🔍 [App.jsx] Final user data:", userWithName);
+
+  setCurrentUser(userWithName);
+  localStorage.setItem('adminUser', JSON.stringify(userWithName));
+  localStorage.setItem('adminToken', 'mock-token-here');
+};
 
   const handleLogout = () => {
     setCurrentUser(null);

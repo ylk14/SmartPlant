@@ -72,4 +72,51 @@ export const loginUser = async (email, password) => {
   return data; // Returns { success: true, user: {...} } or { success: false, message: "..." }
 };
 
+// Fetch species list for the dropdown
+export const fetchSpeciesList = async () => {
+  try {
+    const response = await fetch('/api/species', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch species: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error fetching species list:', error);
+    throw error;
+  }
+};
+
+// Add new device
+export const addNewDevice = async (deviceData) => {
+  try {
+    const response = await fetch('/api/devices', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(deviceData),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || `Failed to add device: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error adding device:', error);
+    throw error;
+  }
+};
+
 export default apiClient;
+
