@@ -84,13 +84,13 @@ const drawerScreens = [
     name: ADMIN_HEATMAP,
     label: 'Heatmap',
     component: AdminHeatmapScreen,
-    adminOnly: true,
+    adminOnly: false,
   },
   {
     name: ADMIN_IOT,
     label: 'IoT Monitoring',
     component: AdminIotScreen,
-    adminOnly: true,
+    adminOnly: false,
   },
 ];
 
