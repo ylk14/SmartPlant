@@ -9,18 +9,23 @@ const apiClient = axios.create({
   timeout: 10000,
 });
 
+export const postVerifyMfa = async (payload) => {
+  const { data } = await apiClient.post("/api/mfa/verify", payload);
+  return data;
+};
+
 export const fetchUsers = async () => {
-  const { data } = await apiClient.get("/users");
+  const { data } = await apiClient.get("/api/users");
   return data;
 };
 
 export const fetchRoles = async () => {
-  const { data } = await apiClient.get("/roles");
+  const { data } = await apiClient.get("/api/roles");
   return data;
 };
 
 export const updateUser = async (userId, payload) => {
-  const { data } = await apiClient.put(`/users/${userId}`, payload);
+  const { data } = await apiClient.put(`/api/users/${userId}`, payload);
   return data;
 };
 
@@ -72,4 +77,51 @@ export const loginUser = async (email, password) => {
   return data; // Returns { success: true, user: {...} } or { success: false, message: "..." }
 };
 
+// Fetch species list for the dropdown
+export const fetchSpeciesList = async () => {
+  try {
+    const response = await fetch('/api/species', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch species: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error fetching species list:', error);
+    throw error;
+  }
+};
+
+// Add new device
+export const addNewDevice = async (deviceData) => {
+  try {
+    const response = await fetch('/api/devices', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(deviceData),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || `Failed to add device: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error adding device:', error);
+    throw error;
+  }
+};
+
 export default apiClient;
+

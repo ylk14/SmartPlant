@@ -230,13 +230,7 @@ export default function HeatmapScreen() {
       {/* Header - Updated to match ProfileScreen */}
       <View style={[s.header, { paddingTop: insets.top + 12 }]}>
         <View style={s.headerRow}>
-          <Pressable
-            style={s.backButton}
-            onPress={() => navigation.navigate("Home")}
-            android_ripple={{ color: '#00000010', borderless: false }}
-          >
-            <Ionicons name="arrow-back" size={24} color="#1F2A37" />
-          </Pressable>
+          
 
           <Text style={s.headerTitle}>Heatmap & Observations</Text>
           
@@ -545,12 +539,6 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  
-  backButton: {
-    padding: 10,
-    borderRadius: 999,
-    backgroundColor: '#E5ECF3',
   },
   
   headerTitle: { 

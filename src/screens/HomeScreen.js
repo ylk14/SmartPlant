@@ -19,7 +19,7 @@ export default function HomeScreen({ navigation }) {
       {/* Header Section */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Hello, {userName}</Text>
+          <Text style={styles.greeting}>Welcome to Smart Plant</Text>
           <Text style={styles.tagline}>Discover Sarawak's Biodiversity</Text>
         </View>
       </View>

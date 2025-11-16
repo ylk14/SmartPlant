@@ -6,7 +6,9 @@ import WarningIcon from '@mui/icons-material/Warning';
 import SensorsIcon from '@mui/icons-material/Sensors';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import { fetchDevices, resolveDeviceAlerts } from '../services/apiClient'; // 👈 --- IMPORT API FUNCTIONS
+import AddIcon from '@mui/icons-material/Add';
+import CloseIcon from '@mui/icons-material/Close';
+import { fetchDevices, resolveDeviceAlerts, fetchSpeciesList, addNewDevice } from '../services/apiClient'; // 👈 --- ADD NEW IMPORTS
 
 const Iot = () => {
   const [selectedDevice, setSelectedDevice] = useState(null);
@@ -16,6 +18,18 @@ const Iot = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null); // Added for error handling
+
+  // 👇 --- NEW STATE FOR ADD DEVICE MODAL ---
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [speciesList, setSpeciesList] = useState([]);
+  const [formData, setFormData] = useState({
+    device_name: '',
+    species_id: '',
+    latitude: '',
+    longitude: ''
+  });
+  const [formLoading, setFormLoading] = useState(false);
+  const [formError, setFormError] = useState('');
 
   // Load data function
   const loadData = async () => {
@@ -41,6 +55,16 @@ const Iot = () => {
     }
   };
 
+  // 👇 --- NEW FUNCTION TO LOAD SPECIES ---
+  const loadSpecies = async () => {
+    try {
+      const species = await fetchSpeciesList();
+      setSpeciesList(species || []);
+    } catch (err) {
+      console.error('Failed to load species:', err);
+    }
+  };
+
   // Initial load
   useEffect(() => {
     const loadInitialData = async () => {
@@ -55,6 +79,57 @@ const Iot = () => {
     const intervalId = setInterval(loadData, 30000);
     return () => clearInterval(intervalId);
   }, []);
+
+  // 👇 --- NEW FUNCTION TO OPEN ADD MODAL ---
+  const openAddModal = async () => {
+    setFormData({
+      device_name: '',
+      species_id: '',
+      latitude: '',
+      longitude: ''
+    });
+    setFormError('');
+    await loadSpecies(); // Load species when modal opens
+    setIsAddModalOpen(true);
+  };
+
+  // 👇 --- NEW FUNCTION TO CLOSE ADD MODAL ---
+  const closeAddModal = () => {
+    setIsAddModalOpen(false);
+    setFormError('');
+  };
+
+  // 👇 --- NEW FUNCTION TO HANDLE FORM INPUT CHANGES ---
+  const handleFormChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // 👇 --- NEW FUNCTION TO SUBMIT NEW DEVICE ---
+  const handleAddDevice = async (e) => {
+    e.preventDefault();
+    setFormLoading(true);
+    setFormError('');
+
+    try {
+      // Validate required fields
+      if (!formData.device_name || !formData.species_id || !formData.latitude || !formData.longitude) {
+        setFormError('All fields are required');
+        return;
+      }
+
+      await addNewDevice(formData);
+      closeAddModal();
+      // Refresh the device list to show the new device
+      await loadData();
+    } catch (err) {
+      setFormError(err.message || 'Failed to add device');
+    } finally {
+      setFormLoading(false);
+    }
+  };
 
   // Manual refresh
   const onRefresh = async () => {
@@ -141,8 +216,20 @@ const Iot = () => {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <h1 style={styles.title}>IoT Monitoring</h1>
-        <p style={styles.subtitle}>Real-time sensor data from all connected devices</p>
+        <div style={styles.headerTop}>
+          <div>
+            <h1 style={styles.title}>IoT Monitoring</h1>
+            <p style={styles.subtitle}>Real-time sensor data from all connected devices</p>
+          </div>
+          {/* 👇 --- ADD DEVICE BUTTON --- */}
+          <button 
+            style={styles.addDeviceButton}
+            onClick={openAddModal}
+          >
+            <AddIcon style={styles.addButtonIcon} />
+            Add Device
+          </button>
+        </div>
       </div>
 
       {/* Search Bar */}
@@ -257,13 +344,15 @@ const Iot = () => {
                   <div style={styles.deviceName}>{device.device_name}</div>
                 </div>
                 <div style={styles.cell}>
-                  <button 
-                    style={styles.viewButton}
-                    onClick={() => handleViewDevice(device)}
-                  >
-                    <VisibilityIcon style={styles.buttonIcon} />
-                    View
-                  </button>
+                  <div style={styles.actions}>
+                    <button 
+                      style={styles.viewButton}
+                      onClick={() => handleViewDevice(device)}
+                    >
+                      <VisibilityIcon style={styles.buttonIcon} />
+                      View
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -293,11 +382,113 @@ const Iot = () => {
           onClose={handleCloseModal} 
         />
       )}
+
+      {/* 👇 --- ADD DEVICE MODAL --- */}
+      {isAddModalOpen && (
+        <div style={styles.modalBackdrop}>
+          <div style={styles.modalContent}>
+            <div style={styles.modalHeader}>
+              <h2 style={styles.modalTitle}>Add IoT Device</h2>
+              <button 
+                style={styles.closeButton}
+                onClick={closeAddModal}
+              >
+                <CloseIcon />
+              </button>
+            </div>
+            
+            <form onSubmit={handleAddDevice}>
+              <div style={styles.modalBody}>
+                {formError && (
+                  <div style={styles.errorMessage}>
+                    {formError}
+                  </div>
+                )}
+                
+                <div style={styles.formGroup}>
+                  <label style={styles.formLabel}>Device Name *</label>
+                  <input
+                    type="text"
+                    style={styles.formInput}
+                    value={formData.device_name}
+                    onChange={(e) => handleFormChange('device_name', e.target.value)}
+                    placeholder="e.g., Bako Sensor #1"
+                    required
+                  />
+                </div>
+
+                <div style={styles.formGroup}>
+                  <label style={styles.formLabel}>Plant Species *</label>
+                  <select
+                    style={styles.formInput}
+                    value={formData.species_id}
+                    onChange={(e) => handleFormChange('species_id', e.target.value)}
+                    required
+                  >
+                    <option value="">Select a species</option>
+                    {speciesList.map(species => (
+                      <option key={species.species_id} value={species.species_id}>
+                        {species.display_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={styles.formRow}>
+                  <div style={styles.formGroup}>
+                    <label style={styles.formLabel}>Latitude *</label>
+                    <input
+                      type="number"
+                      step="any"
+                      style={styles.formInput}
+                      value={formData.latitude}
+                      onChange={(e) => handleFormChange('latitude', e.target.value)}
+                      placeholder="e.g., 1.4667"
+                      required
+                    />
+                  </div>
+
+                  <div style={styles.formGroup}>
+                    <label style={styles.formLabel}>Longitude *</label>
+                    <input
+                      type="number"
+                      step="any"
+                      style={styles.formInput}
+                      value={formData.longitude}
+                      onChange={(e) => handleFormChange('longitude', e.target.value)}
+                      placeholder="e.g., 110.3333"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div style={styles.modalFooter}>
+                <button 
+                  type="button" 
+                  style={styles.cancelButton}
+                  onClick={closeAddModal}
+                  disabled={formLoading}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  style={styles.submitButton}
+                  disabled={formLoading}
+                >
+                  {formLoading ? 'Adding...' : 'Add Device'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-// --- STYLES (Unchanged) ---
+// 👇 --- UPDATED STYLES (Added new styles for modal and button) ---
 const styles = {
   container: {
     padding: '20px',
@@ -307,6 +498,12 @@ const styles = {
   },
   header: {
     marginBottom: '20px',
+  },
+  headerTop: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: '8px',
   },
   title: {
     fontSize: '24px',
@@ -318,6 +515,25 @@ const styles = {
     fontSize: '14px',
     color: '#6b7280',
     margin: 0,
+  },
+  // 👇 --- NEW ADD DEVICE BUTTON STYLES ---
+  addDeviceButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    backgroundColor: '#2563eb',
+    color: 'white',
+    border: 'none',
+    padding: '10px 16px',
+    borderRadius: '8px',
+    fontSize: '14px',
+    cursor: 'pointer',
+    fontWeight: '600',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+    transition: 'background-color 0.2s',
+  },
+  addButtonIcon: {
+    fontSize: '18px',
   },
   searchBar: {
     display: 'flex',
@@ -551,6 +767,124 @@ const styles = {
     borderRadius: '50%',
     animation: 'spin 1s linear infinite',
     marginBottom: '12px',
+  },
+  // 👇 --- NEW MODAL STYLES ---
+  modalBackdrop: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+    padding: '20px',
+  },
+  modalContent: {
+    background: 'white',
+    borderRadius: '12px',
+    width: '100%',
+    maxWidth: '500px',
+    maxHeight: '90vh',
+    overflowY: 'auto',
+    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)',
+  },
+  modalHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '20px 20px 0 20px',
+    marginBottom: '16px',
+  },
+  modalTitle: {
+    fontSize: '20px',
+    fontWeight: 'bold',
+    color: '#1f2937',
+    margin: 0,
+  },
+  closeButton: {
+    background: 'none',
+    border: 'none',
+    fontSize: '24px',
+    cursor: 'pointer',
+    color: '#6b7280',
+    padding: '4px',
+    borderRadius: '4px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalBody: {
+    padding: '0 20px',
+  },
+  modalFooter: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '12px',
+    padding: '20px',
+    borderTop: '1px solid #e5e7eb',
+    marginTop: '16px',
+  },
+  formGroup: {
+    marginBottom: '16px',
+  },
+  formRow: {
+    display: 'flex',
+    gap: '12px',
+  },
+  formLabel: {
+    display: 'block',
+    marginBottom: '6px',
+    fontWeight: '600',
+    color: '#374151',
+    fontSize: '14px',
+  },
+  formInput: {
+    width: '100%',
+    padding: '10px 12px',
+    border: '1px solid #d1d5db',
+    borderRadius: '6px',
+    fontSize: '14px',
+    boxSizing: 'border-box',
+  },
+  formInput: {
+    width: '100%',
+    padding: '10px 12px',
+    border: '1px solid #d1d5db',
+    borderRadius: '6px',
+    fontSize: '14px',
+    boxSizing: 'border-box',
+  },
+  errorMessage: {
+    backgroundColor: '#fef2f2',
+    border: '1px solid #fecaca',
+    color: '#dc2626',
+    padding: '12px',
+    borderRadius: '6px',
+    marginBottom: '16px',
+    fontSize: '14px',
+  },
+  cancelButton: {
+    padding: '10px 20px',
+    backgroundColor: '#f3f4f6',
+    color: '#374151',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: '600',
+  },
+  submitButton: {
+    padding: '10px 20px',
+    backgroundColor: '#2563eb',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: '600',
   },
 };
 
