@@ -59,7 +59,17 @@ export default function UserDetailModal({
             <button
               disabled={isBusy}
               style={styles.actionBtn}
-              onClick={() => onChangeActive(user.user_id, !user.active)}
+              onClick={() => {
+                if (isBusy) return;
+
+                const confirmMsg = user.active
+                  ? "Are you sure you want to deactivate this account?"
+                  : "Are you sure you want to activate this account?";
+
+                if (window.confirm(confirmMsg)) {
+                  onChangeActive(user.user_id, !user.active);
+                }
+              }}
             >
               {isBusy
                 ? "Saving..."
@@ -89,10 +99,14 @@ export default function UserDetailModal({
                       key={role}
                       style={styles.dropdownItem}
                       onClick={() => {
-                        if (!isBusy) {
+                        if (
+                          window.confirm(
+                            `Are you sure you want to change this user's role to ${role}?`
+                          )
+                        ) {
                           onChangeRole(user.user_id, role);
-                          setRoleMenuOpen(false);
                         }
+                        setRoleMenuOpen(false);
                       }}
                     >
                       {role}
