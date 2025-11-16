@@ -95,7 +95,7 @@ export default function App() {
           } 
         />
         
-        {/* --- ⬇️ *** THIS IS THE FIX *** ⬇️ ---
+        {/* ---  *** THIS IS THE FIX ***  ---
           We use a new 'AdminRoute' component for the /users path.
           Only users with role_name 'admin' can access this.
         */}

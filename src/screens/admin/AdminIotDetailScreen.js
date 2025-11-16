@@ -116,7 +116,7 @@ export default function AdminIotDetailScreen({ route }) {
     },
   ];
 
-  // ⬇️ *** 1. THIS IS THE FIRST CHANGE *** ⬇️
+  //  *** 1. THIS IS THE FIRST CHANGE *** 
   // Set imageSource to null if no photo URL is available
   const imageSource = device.species_photo
     ? { uri: device.species_photo }
@@ -137,7 +137,7 @@ export default function AdminIotDetailScreen({ route }) {
           </TouchableOpacity>
         </View>
 
-        {/* ⬇️ *** 2. THIS IS THE SECOND CHANGE *** ⬇️ */}
+        {/*  *** 2. THIS IS THE SECOND CHANGE ***  */}
         {/* Only render the Image component if imageSource is not null */}
         {imageSource && (
           <Image source={imageSource} style={styles.photo} resizeMode="cover" />

@@ -9,7 +9,7 @@ import * as Location from 'expo-location';
 
 export default function CameraScreen() {
   const nav = useNavigation();
-  const insets = useSafeAreaInsets();            // ✅ now available
+  const insets = useSafeAreaInsets();           
   const camRef = useRef(null);
 
   const [permission, requestPermission] = useCameraPermissions();

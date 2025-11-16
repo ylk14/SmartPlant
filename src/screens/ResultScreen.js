@@ -357,7 +357,7 @@ const s = StyleSheet.create({
     backgroundColor: '#F6F9F4',
   },
   scrollContent: {
-    paddingBottom: 110, // Space for the bottom bar
+    paddingBottom: 110, 
   },
   header: {
     flexDirection: 'row',
@@ -435,7 +435,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingBottom: 24, // Extra padding for home bar
+    paddingBottom: 24, 
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderColor: '#e5e7eb',

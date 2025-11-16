@@ -24,7 +24,7 @@ export default function AdminAgentChatScreen() {
 
   const reversed = useMemo(() => [...messages].reverse(), [messages]);
 
-  // ⬇️ *** THIS FUNCTION IS NOW ASYNC AND CALLS THE API *** ⬇️
+  //  *** THIS FUNCTION IS NOW ASYNC AND CALLS THE API *** 
   const handleSend = async (preset) => {
     const text = (preset ?? input).trim();
     if (!text || isTyping) return;
@@ -234,7 +234,7 @@ export default function AdminAgentChatScreen() {
   );
 }
 
-// ⬇️ *** STYLES (with minor fixes for text color) *** ⬇️
+//  *** STYLES (with minor fixes for text color) *** 
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
