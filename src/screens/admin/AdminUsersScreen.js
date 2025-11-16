@@ -130,7 +130,7 @@ export default function AdminUsersScreen() {
                     style={styles.viewButton}
                     onPress={() =>
                       navigation.navigate(ADMIN_USER_DETAIL, {
-                        userData: user, // 👈 matches new detail screen
+                        userData: user, // matches new detail screen
                         onUpdate: handleUserUpdate,
                       })
                     }

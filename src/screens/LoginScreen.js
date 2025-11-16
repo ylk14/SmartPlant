@@ -24,7 +24,7 @@ export default function LoginScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
 
   // ------------------------------------------------------------
-  // ✅ Helper: Mask email for messages
+  // Helper: Mask email for messages
   const maskEmail = (email) => {
     if (!email) return "";
     const [local, domain] = email.split("@");
@@ -34,7 +34,7 @@ export default function LoginScreen({ navigation }) {
   };
 
   // ------------------------------------------------------------
-  // ✅ Helper: Forgot password
+  // Helper: Forgot password
   const handleForgotPassword = async () => {
     if (!email) {
       Alert.alert("Missing Email", "Please enter your registered email first.");
@@ -52,7 +52,7 @@ export default function LoginScreen({ navigation }) {
   };
 
   // ------------------------------------------------------------
-  // 🔥 REAL LOGIN → triggers MFA
+  // REAL LOGIN → triggers MFA
   const handleLoginPress = async () => {
     if (!email || !password) {
       Alert.alert("Missing Fields", "Please enter both email and password.");
@@ -83,7 +83,7 @@ export default function LoginScreen({ navigation }) {
         return;
       }
 
-      // 🔥 navigate to MFA screen with challenge_id
+      // navigate to MFA screen with challenge_id
       navigation.navigate("MFA", {
         challenge_id: response.challenge_id,
         email: email,

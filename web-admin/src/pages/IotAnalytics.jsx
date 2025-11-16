@@ -16,7 +16,7 @@ const METRICS = [
   { key: 'temperature', label: 'Temperature', unit: '°C', color: '#F97316', digits: 1 },
   { key: 'humidity', label: 'Humidity', unit: '%', color: '#2563EB', digits: 0 },
   { key: 'soil_moisture', label: 'Soil Moisture', unit: '%', color: '#22C55E', digits: 0 },
-  // 👈 --- ADDED MOTION CHART ---
+  //  --- ADDED MOTION CHART ---
   { 
     key: 'motion_detected', 
     label: 'Motion', 
@@ -52,7 +52,7 @@ const MetricChart = ({ data, metric, rangeKey, chartWidth }) => {
   const filteredEntries = data.filter(
     (entry) =>
       (typeof entry[metric.key] === 'number' && !Number.isNaN(entry[metric.key])) ||
-      typeof entry[metric.key] === 'boolean' // 👈 --- ADD THIS CONDITION
+      typeof entry[metric.key] === 'boolean' // --- ADD THIS CONDITION
   );
   const metricValues = filteredEntries.map((entry) => entry[metric.key]);
 
@@ -96,7 +96,7 @@ const MetricChart = ({ data, metric, rangeKey, chartWidth }) => {
     };
   });
 
-  // ❗ --- This is now a standard line chart for all metrics ---
+  // --- This is now a standard line chart for all metrics ---
   const polylinePoints = points.map((point) => `${point.x},${point.y}`).join(' ');
 
   const gridLines = Array.from({ length: 4 }, (_, index) => {
@@ -140,7 +140,7 @@ const MetricChart = ({ data, metric, rangeKey, chartWidth }) => {
           </div>
         </div>
 
-        {/* 👈 --- This "Total Events" logic is kept --- */}
+        {/* --- This "Total Events" logic is kept --- */}
         <div style={styles.metricSummaryItem}>
           <div style={styles.metricSummaryLabel}>
             {isMotion ? 'Total Events' : 'Average'}
@@ -180,7 +180,7 @@ const MetricChart = ({ data, metric, rangeKey, chartWidth }) => {
           ))}
 
           <polyline
-            points={polylinePoints} // 👈 --- Renders the line chart
+            points={polylinePoints} // --- Renders the line chart
             fill="none"
             stroke={color}
             strokeWidth={2.5}

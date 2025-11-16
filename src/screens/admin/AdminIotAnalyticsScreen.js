@@ -29,7 +29,7 @@ const METRICS = [
   { key: 'soil_moisture', label: 'Soil Moisture', unit: '%', color: '#22C55E', digits: 0 },
 ];
 
-// ⬇️ *** 1. ADDED A NEW METRIC CONFIG FOR MOTION *** ⬇️
+//  *** 1. ADDED A NEW METRIC CONFIG FOR MOTION *** 
 const MOTION_METRIC = { 
   key: 'motion_events', 
   label: 'Motion Events', 
@@ -257,7 +257,7 @@ export default function AdminIotAnalyticsScreen() {
 
   const chartWidth = Math.min(width - 40, 540);
 
-  // ⬇️ *** 2. NEW: AGGREGATE MOTION DATA INTO BUCKETS *** ⬇️
+  //  *** 2. NEW: AGGREGATE MOTION DATA INTO BUCKETS *** 
   const motionHistory = useMemo(() => {
     if (history.length === 0) return [];
 

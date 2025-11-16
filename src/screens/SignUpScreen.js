@@ -10,7 +10,7 @@ import {
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-// ⬇️ *** IMPORT REAL REGISTER API *** ⬇️
+//  *** IMPORT REAL REGISTER API *** 
 import { registerUser } from "../../services/api";
 
 export default function SignUpScreen({ navigation }) {
@@ -22,7 +22,7 @@ export default function SignUpScreen({ navigation }) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // ✅ Local validation before sending to backend
+  // Local validation before sending to backend
   const validateForm = () => {
     if (!name || !email || !password || !confirmPassword) {
       Alert.alert("Missing Fields", "Please fill in all the fields.");
@@ -53,7 +53,7 @@ export default function SignUpScreen({ navigation }) {
 
     setLoading(true);
     try {
-      // ⬇️ *** CALL REAL REGISTER API *** ⬇️
+      //  *** CALL REAL REGISTER API *** 
       // We pass the name, email, and password
       const response = await registerUser({ 
         username: name, // Your ER diagram shows 'username'
@@ -86,7 +86,7 @@ export default function SignUpScreen({ navigation }) {
           Join us today and explore our amazing features!
         </Text>
 
-        {/* ✅ Buttons to switch between Login / Sign Up */}
+        {/* Buttons to switch between Login / Sign Up */}
         <View style={styles.switchButtons}>
           <TouchableOpacity style={[styles.switchButton, styles.activeButton]}>
             <Text style={[styles.switchText, styles.activeText]}>Sign Up</Text>
@@ -99,7 +99,7 @@ export default function SignUpScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* ✅ Name */}
+        {/* Name */}
         <View style={styles.inputContainer}>
           <Text style={styles.label}>Full Name</Text>
           <TextInput
@@ -111,7 +111,7 @@ export default function SignUpScreen({ navigation }) {
           />
         </View>
 
-        {/* ✅ Email */}
+        {/* Email */}
         <View style={styles.inputContainer}>
           <Text style={styles.label}>Email</Text>
           <TextInput
@@ -125,7 +125,7 @@ export default function SignUpScreen({ navigation }) {
           />
         </View>
 
-        {/* ✅ Password */}
+        {/* Password */}
         <View style={styles.inputContainer}>
           <Text style={styles.label}>Password</Text>
           <View style={styles.passwordContainer}>
@@ -150,7 +150,7 @@ export default function SignUpScreen({ navigation }) {
           </View>
         </View>
 
-        {/* ✅ Confirm Password */}
+        {/* Confirm Password */}
         <View style={styles.inputContainer}>
           <Text style={styles.label}>Confirm Password</Text>
           <View style={styles.passwordContainer}>
@@ -175,7 +175,7 @@ export default function SignUpScreen({ navigation }) {
           </View>
         </View>
 
-        {/* ✅ Sign Up Button */}
+        {/* Sign Up Button */}
         <TouchableOpacity
           style={styles.loginButton}
           onPress={handleSignUp}
@@ -190,7 +190,7 @@ export default function SignUpScreen({ navigation }) {
   );
 }
 
-// ✅ Styles (Unchanged)
+// Styles (Unchanged)
 const styles = StyleSheet.create({
   background: {
     flex: 1,

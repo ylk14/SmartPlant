@@ -7,7 +7,7 @@ import * as Location from 'expo-location';
 import ScannerOverlay from '../screens/components/ScannerOverlay';
 import { API_BASE_URL } from '../../services/api';
 
-// 1. 👈 --- IMPORT THE useAuth HOOK ---
+// 1. --- IMPORT THE useAuth HOOK ---
 import { useAuth } from '../context/AuthContext'; 
 
 const LOW_CONFIDENCE_THRESHOLD = 60;
@@ -17,7 +17,7 @@ export default function PreviewScreen() {
   const route = useRoute();
   const { uri, source, exif } = route.params ?? {};
 
-  // 2. 👈 --- GET THE LOGGED-IN USER ---
+  // 2. --- GET THE LOGGED-IN USER ---
   const { user } = useAuth(); // This hook gets the user from your AuthContext
 
   const [loading, setLoading] = useState(false);
@@ -93,7 +93,7 @@ export default function PreviewScreen() {
         form.append('notes', `Captured: ${exif.DateTime}`);
       }
 
-      // 3. 👈 --- THIS IS THE FIX ---
+      // 3. --- THIS IS THE FIX ---
       // Instead of hard-coding '1', use the real user's ID
       if (user && user.user_id) {
         form.append('user_id', String(user.user_id));

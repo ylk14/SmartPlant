@@ -1,11 +1,10 @@
 // src/screens/FlagUnsureScreen.js
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { useNavigation, CommonActions } from '@react-navigation/native'; // ⬅️ one import
+import { useNavigation, CommonActions } from '@react-navigation/native'; 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { ROOT_TABS, TAB_HOME, TAB_IDENTIFY } from '../navigation/routes'; // ⬅️ new import
-
+import { ROOT_TABS, TAB_HOME, TAB_IDENTIFY } from '../navigation/routes'; 
 export default function FlagUnsureScreen() {
   const nav = useNavigation();
 

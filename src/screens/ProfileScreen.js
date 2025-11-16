@@ -4,11 +4,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
-// ⬇️ *** STEP 1: Import useAuth *** ⬇️
+//  *** STEP 1: Import useAuth *** 
 import { useAuth } from '../context/AuthContext';
 import { fetchUserPosts } from '../../services/api';
 
-// ⬇️ *** STEP 2: REMOVE THE BYPASS *** ⬇️
+//  *** STEP 2: REMOVE THE BYPASS *** 
 // const TEMP_USER_ID = '1'; // No longer needed!
 
 // (fmt function is unchanged)
@@ -31,17 +31,17 @@ export default function ProfileScreen() {
   const nav = useNavigation();
   const insets = useSafeAreaInsets();
 
-  // ⬇️ *** STEP 3: Get the REAL user and logout function from context *** ⬇️
+  //  *** STEP 3: Get the REAL user and logout function from context *** 
   const { user, logout } = useAuth();
 
-  // ⬇️ *** We no longer need local 'user' state, context handles it! *** ⬇️
+  //  *** We no longer need local 'user' state, context handles it! *** 
   // const [user, setUser] = useState(null);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // ⬇️ *** STEP 4: Simplify data loading *** ⬇️
+  //  *** STEP 4: Simplify data loading *** 
   const loadProfileData = () => {
     // If no user from context, do nothing.
     if (!user) {
@@ -70,7 +70,7 @@ export default function ProfileScreen() {
     });
   };
 
-  // ⬇️ *** STEP 5: Update the 'useFocusEffect' hook *** ⬇️
+  //  *** STEP 5: Update the 'useFocusEffect' hook *** 
   useFocusEffect(
     useCallback(() => {
       loadProfileData();
@@ -82,7 +82,7 @@ export default function ProfileScreen() {
     loadProfileData();
   };
 
-  // ⬇️ *** STEP 6: Update the 'openObservation' function *** ⬇️
+  //  *** STEP 6: Update the 'openObservation' function *** 
   // (This is the fix we made earlier, just keeping it)
   const openObservation = (item) =>
     nav.navigate('ObservationDetail', {
@@ -164,7 +164,7 @@ export default function ProfileScreen() {
       {/* Header */}
       <View style={[s.header, { paddingTop: insets.top + 12 }]}>
         
-        {/* ⬇️ *** STEP 7: This section now just works! *** ⬇️ */}
+        {/*  *** STEP 7: This section now just works! ***  */}
         {/* It automatically uses the 'user' from the context */}
         {user ? (
           <>
@@ -180,7 +180,7 @@ export default function ProfileScreen() {
                 </View>
               </View>
               
-              {/* ⬇️ *** BONUS: Replaced Settings with a working Logout button *** ⬇️ */}
+              {/*  *** BONUS: Replaced Settings with a working Logout button ***  */}
               <Pressable
                 style={s.settingsButton}
                 onPress={logout} // This logs the user out

@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
 import { loginUser } from '../services/apiClient'; 
-import { postVerifyMfa } from '../services/apiClient'; // ⭐ ADDED
+import { postVerifyMfa } from '../services/apiClient'; //  ADDED
 
 const Login = ({ onLogin }) => {
   const [step, setStep] = useState(1); 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const [mfaCode, setMfaCode] = useState('');                // ⭐ UPDATED
+  const [mfaCode, setMfaCode] = useState('');                //  UPDATED
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [pendingUser, setPendingUser] = useState(null);
-  const [challengeId, setChallengeId] = useState('');        // ⭐ UPDATED
+  const [challengeId, setChallengeId] = useState('');        //  UPDATED
 
   const [userEmail, setUserEmail] = useState('');
 
@@ -102,10 +102,6 @@ const handleCredentialsSubmit = async (e) => {
         <div style={styles.header}>
           <h1 style={styles.title}>Smart Plant Sarawak</h1>
           <p style={styles.subtitle}>Admin Portal</p>
-
-          <div style={styles.mockBanner}>
-            <strong>TEST MODE</strong> - Login with real Admin/Researcher credentials.
-          </div>
         </div>
 
         {error && (
@@ -155,7 +151,6 @@ const handleCredentialsSubmit = async (e) => {
         {step === 2 && (
           <form onSubmit={handleMFASubmit} style={styles.form}>
             <div style={styles.mfaHeader}>
-              <div style={styles.mfaIcon}>📧</div>
               <h3 style={styles.mfaTitle}>Email Verification</h3>
 
               <p style={styles.mfaSubtitle}>
@@ -254,15 +249,6 @@ const styles = {
     color: '#6B7280',
     margin: '0 0 16px 0',
   },
-  mockBanner: {
-    backgroundColor: '#FEF3C7',
-    border: '1px solid #F59E0B',
-    color: '#92400E',
-    padding: '8px 12px',
-    borderRadius: '6px',
-    fontSize: '12px',
-    marginTop: '12px',
-  },
   form: {
     display: 'flex',
     flexDirection: 'column',
@@ -319,10 +305,6 @@ const styles = {
     textAlign: 'center',
     marginBottom: '24px',
   },
-  mfaIcon: {
-    fontSize: '48px',
-    marginBottom: '16px',
-  },
 mfaTitle: {
     fontSize: '18px',
     fontWeight: '600',
@@ -341,13 +323,6 @@ mfaTitle: {
     margin: '0 0 16px 0',
     lineHeight: '1.5',
   },
-  mockCodeDisplay: {
-    backgroundColor: '#F3F4F6',
-    border: '1px solid #D1D5DB',
-    borderRadius: '8px',
-    padding: '12px',
-    marginTop: '16px',
-  },
   code: {
     backgroundColor: '#1F2937',
     color: '#FFFFFF',
@@ -355,12 +330,6 @@ mfaTitle: {
     borderRadius: '4px',
     fontSize: '16px',
     fontWeight: 'bold',
-  },
-  mockNote: {
-    fontSize: '11px',
-    color: '#6B7280',
-    margin: '8px 0 0 0',
-    fontStyle: 'italic',
   },
   buttonGroup: {
     display: 'flex',
@@ -407,14 +376,6 @@ mfaTitle: {
     fontWeight: '600',
     cursor: 'pointer',
     textDecoration: 'underline',
-  },
-  mockHint: {
-    backgroundColor: '#F8FAFC',
-    border: '1px solid #E2E8F0',
-    borderRadius: '8px',
-    padding: '12px',
-    fontSize: '12px',
-    color: '#475569',
   },
   footer: {
     marginTop: '24px',

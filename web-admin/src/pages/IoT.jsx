@@ -51,7 +51,7 @@ const Iot = () => {
     }
   };
 
-  // 👇 --- THIS IS THE FIX --- 👇
+  //  --- THIS IS THE FIX --- 
   const loadSpecies = async () => {
     try {
       // 1. Fetch the data. It's already formatted by the backend
@@ -400,7 +400,7 @@ const Iot = () => {
                     required
                   >
                     <option value="">Select a species</option>
-                    {/* 👇 --- This now correctly reads 'display_name' --- 👇 */}
+                    {/*  --- This now correctly reads 'display_name' ---  */}
                     {speciesList.map(species => (
                       <option key={species.species_id} value={species.species_id}>
                         {species.display_name}

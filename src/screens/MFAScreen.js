@@ -13,7 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { postVerifyMfa } from "../../services/api";
 import { useAuth } from "../context/AuthContext";
 
-// ⭐ Import correct route constants
+// Import correct route constants
 import { ADMIN_ROOT, ROOT_TABS } from "../navigation/routes";
 
 export default function MFAScreen({ route, navigation }) {

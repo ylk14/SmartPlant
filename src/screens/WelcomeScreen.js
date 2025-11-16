@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 60,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)', // Slight dark overlay for readability
+    backgroundColor: 'rgba(0, 0, 0, 0.4)', 
   },
   textContainer: {
     alignItems: 'center',

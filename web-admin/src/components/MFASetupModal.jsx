@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
-import { postVerifyMfa } from '../services/apiClient'; // ⭐ ADDED
+import { postVerifyMfa } from '../services/apiClient'; //  ADDED
 
 export default function MFASetupModal({ user, onClose, onMFASetupComplete }) {
   const [step, setStep] = useState(1);
   const [verificationCode, setVerificationCode] = useState('');
   const [qrCodeUrl, setQrCodeUrl] = useState('');
 
-  // ⭐ UPDATED — REAL backend setup
+  //  UPDATED — REAL backend setup
   const initiateMFASetup = async () => {
     try {
-      const response = await fetch('/api/mfa/setup', {   // ⭐ UPDATED
+      const response = await fetch('/api/mfa/setup', {   //  UPDATED
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.user_id })
@@ -24,10 +24,10 @@ export default function MFASetupModal({ user, onClose, onMFASetupComplete }) {
     }
   };
 
-  // ⭐ UPDATED — REAL backend verify
+  //  UPDATED — REAL backend verify
   const verifyMFACode = async () => {
     try {
-      // ⭐ CALL REAL FUNCTION
+      // CALL REAL FUNCTION
       const result = await postVerifyMfa(user.challenge_id, verificationCode);
 
       if (result.success) {

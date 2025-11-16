@@ -23,12 +23,6 @@ api.interceptors.response.use(
   }
 );
 
-// Mock data for web version
-const MOCK_ACCOUNTS = {
-  "admin@smartplant.dev": { password: "admin123", role: "admin" },
-  "ranger@smartplant.dev": { password: "user1234", role: "user" },
-};
-
 // Login function for web
 export const loginUser = async (email, password) => {
   const key = email.trim().toLowerCase();
@@ -109,7 +103,7 @@ export const fetchSystemStatus = async () => {
   }
 };
 
-// --- ⬇️ FUNCTIONS NEEDED FOR IOT.JSX ⬇️ ---
+// --- ⬇ FUNCTIONS NEEDED FOR IOT.JSX ⬇ ---
 
 /**
  * Fetches the full list of all devices for the admin dashboard.
