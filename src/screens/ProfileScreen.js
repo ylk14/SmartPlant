@@ -142,9 +142,9 @@ export default function ProfileScreen() {
               <Text style={s.viewButtonText}>View</Text>
             </Pressable>
           </View>
-          <Text style={s.postMeta}>
+          {/* <Text style={s.postMeta}>
             {item.location_name ? item.location_name : 'Location not recorded'}
-          </Text>
+          </Text> */}
           <Text style={s.postTimestamp}>{fmt(item.created_at)}</Text>
         </View>
       </View>

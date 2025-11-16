@@ -1,3 +1,4 @@
+// src/services/flagged.js
 import apiClient from "./apiClient";
 
 const toNumberOrNull = (value) => {
@@ -6,111 +7,150 @@ const toNumberOrNull = (value) => {
   return Number.isNaN(numeric) ? null : numeric;
 };
 
+// Get the list of pending / flagged observations for review
 export async function fetchFlaggedUnsure() {
-  const [observationsRes, speciesRes, usersRes, aiResultsRes] = await Promise.all([
-    apiClient.get("/plant-observations"),
-    apiClient.get("/species"),
-    apiClient.get("/users"),
-    apiClient.get("/ai-results"),
-  ]);
-
-  const observations = Array.isArray(observationsRes.data) ? observationsRes.data : [];
-  const species = Array.isArray(speciesRes.data) ? speciesRes.data : [];
-  const users = Array.isArray(usersRes.data) ? usersRes.data : [];
-  const aiResults = Array.isArray(aiResultsRes.data) ? aiResultsRes.data : [];
-
-  const speciesMap = new Map(
-    species.map((item) => [item.species_id, item])
-  );
-
-  const userMap = new Map(
-    users.map((item) => [item.user_id, item])
-  );
-
-  const confidenceMap = new Map();
-  aiResults.forEach((result) => {
-    if (!result || result.observation_id == null) return;
-    const score = toNumberOrNull(result.confidence_score);
-    if (score == null) return;
-    const existing = confidenceMap.get(result.observation_id);
-    if (existing == null || score > existing) {
-      confidenceMap.set(result.observation_id, score);
-    }
+  const res = await apiClient.get("/api/admin/observations", {
+    params: {
+      status: "pending",   // only pending ones
+      page: 1,
+      page_size: 200
+    },
   });
 
-  const flagged = observations
-    .filter(
-      (obs) => typeof obs.status === "string" && obs.status.toLowerCase() === "pending"
-    )
-    .map((obs) => {
-      const speciesInfo = speciesMap.get(obs.species_id);
-      const userInfo = userMap.get(obs.user_id);
-      const locationFallback = [obs.location_latitude, obs.location_longitude]
-        .filter((coord) => coord != null)
-        .map((coord) => Number(coord).toFixed(4))
-        .join(", ");
+  const payload = res.data || {};
+  const rows = Array.isArray(payload.data) ? payload.data : [];
+
+  const flagged = rows
+    .map((row) => {
+      const lat = toNumberOrNull(row.location_latitude);
+      const lon = toNumberOrNull(row.location_longitude);
+
+      const coordsText =
+        lat != null && lon != null
+          ? `${lat.toFixed(4)}, ${lon.toFixed(4)}`
+          : "";
+
+      const location =
+        row.location ||
+        row.location_name ||
+        coordsText ||
+        "Location unavailable";
 
       return {
-        observation_id: obs.observation_id,
-        plant_name:
-          speciesInfo?.common_name ||
-          speciesInfo?.scientific_name ||
-          "Unknown species",
-        confidence: confidenceMap.get(obs.observation_id),
-        user: userInfo?.username || "Unknown reporter",
-        submitted_at: obs.created_at,
-        location: obs.location_name || (locationFallback || "Location unavailable"),
-        photo: obs.photo_url,
-        is_endangered: Boolean(speciesInfo?.is_endangered),
-        notes: obs.notes ?? "",
-        status: obs.status,
+        observation_id: row.observation_id,
+        plant_name: row.plant_name || "Unknown species",
+        confidence:
+          row.confidence != null
+            ? Number(row.confidence)
+            : null,
+        user: row.user || "Unknown reporter",
+        submitted_at: row.submitted_at || row.created_at,
+        location,
+        photo: row.photo || row.photo_url || null,
+        // this endpoint does not currently expose endangered flag
+        is_endangered: false,
+        notes: row.notes || "",
+        status: row.status || "pending",
+        // needed for proper lat / lon display
+        location_latitude: row.location_latitude,
+        location_longitude: row.location_longitude,
       };
     })
     .sort((a, b) => {
-      const dateA = new Date(a.submitted_at).getTime();
-      const dateB = new Date(b.submitted_at).getTime();
-      return Number.isNaN(dateB) - Number.isNaN(dateA) || dateB - dateA;
+      const aTime = new Date(a.submitted_at || 0).getTime();
+      const bTime = new Date(b.submitted_at || 0).getTime();
+      if (Number.isNaN(aTime) && Number.isNaN(bTime)) return 0;
+      if (Number.isNaN(aTime)) return 1;
+      if (Number.isNaN(bTime)) return -1;
+      return bTime - aTime;
     });
 
   return flagged;
 }
 
+/**
+ * Update status of a single observation, using the dedicated admin endpoints:
+ *  - status = "verified"  -> PUT /api/admin/observations/:id/verify
+ *  - status = "rejected"  -> PUT /api/admin/observations/:id/reject
+ *  - status = "pending"   -> PUT /api/admin/observations/:id/flag-unsure
+ * Fallback: generic update route for any weird status.
+ */
 export async function updateObservationStatus(observationId, options = {}) {
   if (!observationId) {
     throw new Error("Observation id is required");
   }
 
-  const [detailRes] = await Promise.all([
-    apiClient.get(`/plant-observations/${observationId}`),
-  ]);
+  const status = options.status;
+  const notes =
+    typeof options.notes === "string" ? options.notes.trim() : undefined;
 
-  const detail = detailRes.data;
-  if (!detail || !detail.observation_id) {
-    throw new Error("Observation not found");
+  if (!status) {
+    throw new Error("Status is required");
   }
 
-  const payload = {
-    species_id:
-      typeof options.speciesId !== "undefined"
-        ? options.speciesId
-        : detail.species_id ?? null,
-    photo_url: detail.photo_url ?? null,
-    location_latitude: detail.location_latitude ?? null,
-    location_longitude: detail.location_longitude ?? null,
-    location_name: detail.location_name ?? null,
-    notes:
-      typeof options.notes !== "undefined"
-        ? options.notes
-        : detail.notes ?? null,
-    source: detail.source ?? null,
-    status:
-      options.status ?? detail.status ?? "pending",
-  };
+  // 1) Approve / verify
+  if (status === "verified") {
+    const res = await apiClient.put(
+      `/api/admin/observations/${observationId}/verify`
+    );
+    return res.data;
+  }
 
-  await apiClient.put(`/plant-observations/${observationId}`, payload);
+  // 2) Reject
+  if (status === "rejected") {
+    // backend rejectObservation does not require a body,
+    // but we can send notes later if you extend it
+    const res = await apiClient.put(
+      `/api/admin/observations/${observationId}/reject`,
+      notes ? { notes } : {}
+    );
+    return res.data;
+  }
 
-  return {
-    ...detail,
-    ...payload,
-  };
+  // 3) Flag as unsure (back to pending with optional notes)
+  if (status === "pending") {
+    const body = {};
+    if (notes) body.notes = notes;
+
+    const res = await apiClient.put(
+      `/api/admin/observations/${observationId}/flag-unsure`,
+      body
+    );
+    return res.data;
+  }
+
+  // 4) Fallback, use generic update route for any other status
+  const res = await apiClient.put(
+    `/api/admin/plant-observations/${observationId}`,
+    {
+      status,
+      notes: notes || null,
+    }
+  );
+  return res.data;
+}
+
+export async function fetchAllSpecies() {
+  const res = await apiClient.get("/api/species/all");
+  const raw = res.data;
+
+  if (Array.isArray(raw)) return raw;
+  if (Array.isArray(raw?.data)) return raw.data;
+  return [];
+}
+
+export async function confirmExistingSpecies(observationId, payload) {
+  const res = await apiClient.post(
+    `/api/admin/observations/${observationId}/confirm-existing`,
+    payload
+  );
+  return res.data;
+}
+
+export async function confirmNewSpecies(observationId, payload) {
+  const res = await apiClient.post(
+    `/api/admin/observations/${observationId}/confirm-new`,
+    payload
+  );
+  return res.data;
 }

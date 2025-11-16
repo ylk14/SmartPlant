@@ -1,818 +1,868 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
-  Modal,
-  ScrollView,
   Platform,
   Alert,
-  TextInput,
+  ScrollView,
+  Modal,
+  Image, 
   Pressable,
-} from "react-native";
-import MapView, { Marker, Heatmap } from "react-native-maps";
-import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
-import { LinearGradient } from "expo-linear-gradient";
-import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { fetchMapObservations } from '../../services/api';
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import MapView, { Marker, Heatmap } from 'react-native-maps';
+import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { fetchMapObservations, API_BASE_URL } from '../../services/api';
 
-// ===================== MOCK DATA =====================
-const mockObservations = [
-  {
-    observation_id: 1,
-    user: { username: "Ali" },
-    species: {
-      common_name: "Borneo Pitcher Plant",
-      scientific_name: "Nepenthes rajah",
-      is_endangered: true,
-      image_url: require("../../assets/PlantPin.png"),
-    },
-    photo_url: require("../../assets/pitcher.jpg"),
-    location_latitude: 1.5536,
-    location_longitude: 110.3593,
-    location_name: "Kuching Wetlands",
-    created_at: "2025-09-10",
-    notes: "Found near mangrove area",
-  },
-  {
-    observation_id: 2,
-    user: { username: "Sarah" },
-    species: {
-      common_name: "Rafflesia",
-      scientific_name: "Rafflesia arnoldii",
-      is_endangered: true,
-      image_url: require("../../assets/PlantPin.png"),
-    },
-    photo_url: require("../../assets/rafflesia.jpg"),
-    location_latitude: 1.4667,
-    location_longitude: 110.3333,
-    location_name: "Bako National Park",
-    created_at: "2025-09-18",
-    notes: "Strong smell, fully bloomed.",
-  },
-  {
-    observation_id: 3,
-    user: { username: "Mei" },
-    species: {
-      common_name: "Wild Orchid",
-      scientific_name: "Dendrobium anosmum",
-      is_endangered: false,
-      image_url: require("../../assets/PlantPin.png"),
-    },
-    photo_url: require("../../assets/orchid.jpg"),
-    location_latitude: 1.49,
-    location_longitude: 110.36,
-    location_name: "Semenggoh Reserve",
-    created_at: "2025-09-20",
-    notes: "Attached to a tree, bright purple.",
-  },
-  {
-    observation_id: 4,
-    user: { username: "John" },
-    species: {
-      common_name: "Sarawak Fern",
-      scientific_name: "Dipteris sarawakensis",
-      is_endangered: false,
-      image_url: require("../../assets/PlantPin.png"),
-    },
-    photo_url: require("../../assets/aloe.jpg"),
-    location_latitude: 1.52,
-    location_longitude: 110.34,
-    location_name: "Matang Wildlife Center",
-    created_at: "2025-09-15",
-    notes: "Growing on forest floor",
-  },
-  {
-    observation_id: 5,
-    user: { username: "David" },
-    species: {
-      common_name: "Palm Tree",
-      scientific_name: "Arecaceae sp.",
-      is_endangered: false,
-      image_url: require("../../assets/PlantPin.png"),
-    },
-    photo_url: require("../../assets/aloe.jpg"),
-    location_latitude: 1.48,
-    location_longitude: 110.32,
-    location_name: "Santubong Area",
-    created_at: "2025-09-12",
-    notes: "Common palm species",
-  },
-];
-
-// Mock user authentication state - replace with your actual auth context
-const isPublicUser = true; // Set to false for admin users
+const HEATMAP_RADIUS = Platform.OS === 'android' ? 40 : 60;
 
 export default function HeatmapScreen() {
-  const navigation = useNavigation();
-  const route = useRoute();
-  const mapRef = useRef(null);
-  const insets = useSafeAreaInsets();
-
-  // ======= STATE VARIABLES =======
   const [observations, setObservations] = useState([]);
-  const [mode, setMode] = useState("heatmap");
-  const [selectedPlant, setSelectedPlant] = useState(null);
-  const [filterVisible, setFilterVisible] = useState(false);
-  const [selectedSpecies, setSelectedSpecies] = useState("All");
+  const [selectedSpecies, setSelectedSpecies] = useState('All');
+  const [endangeredFilter, setEndangeredFilter] = useState('all'); // all, endangered, non
+  const [viewMode, setViewMode] = useState('heatmap'); // heatmap, markers
+  const [selectedObservation, setSelectedObservation] = useState(null);
+  const [loading, setLoading] = useState(false);
+
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date("2025-01-01"));
-  const [speciesSearch, setSpeciesSearch] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(new Date('2025-01-01'));
 
-  // ======= RESET STATE WHEN SCREEN IS FOCUSED =======
-  useFocusEffect(
-    React.useCallback(() => {
-      // Reset all filters and state to default when screen comes into focus
-      setSelectedSpecies("All");
-      setSelectedDate(new Date("2025-01-01"));
-      setSpeciesSearch("");
-      setMode("heatmap");
-      setSelectedPlant(null);
-      
-      // Reset map to initial region
-      if (mapRef.current) {
-        mapRef.current.animateToRegion({
-          latitude: 1.55,
-          longitude: 110.35,
-          latitudeDelta: 0.4,
-          longitudeDelta: 0.4,
-        }, 500);
+  const [detailsVisible, setDetailsVisible] = useState(false);
+
+  const mapRef = useRef(null);
+
+  const loadObservations = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      // true means "public" for the backend
+      const all = await fetchMapObservations(true);
+
+      // Normalise and keep everything, masking is handled in filtering
+      const normalised = all.map(obs => {
+        const apiBase = API_BASE_URL?.replace(/\/$/, '') || '';
+          const base = apiBase.replace(/\/api$/, '');  // gives http://host:3000
+
+          const rawPhoto = obs.photo_url || obs.photo || null;
+
+          return {
+            ...obs,
+            photo_url: rawPhoto,
+            photoUri: rawPhoto
+              ? `${base}/${String(rawPhoto).replace(/^\/+/, '')}` // /uploads/...
+              : null,
+          };
+        // const rawPhoto = obs.photo_url || obs.photo || null;
+
+        return {
+          ...obs,  
+          location_latitude:
+            obs.location_latitude != null
+              ? Number.parseFloat(obs.location_latitude)
+              : null,
+          location_longitude:
+            obs.location_longitude != null
+              ? Number.parseFloat(obs.location_longitude)
+              : null,
+          confidence_score:
+            obs.confidence_score != null
+              ? Number(obs.confidence_score)
+              : null,
+          is_masked: !!obs.is_masked,
+          photo_url: rawPhoto,
+          photoUri: rawPhoto
+            ? `${base}/${String(rawPhoto).replace(/^\/+/, '')}`
+            : null,
+          species: {
+            ...(obs.species || {}),
+            is_endangered: !!obs.species?.is_endangered,
+          },
+        };
+      });
+
+      setObservations(normalised);
+
+      if (normalised.length > 0) {
+        setSelectedObservation(normalised[0]);
+      } else {
+        setSelectedObservation(null);
       }
-    }, [])
-  );
-
-  // ======= BACKEND INTEGRATION READY =======
-  useEffect(() => {
-    const fetchObservations = async () => {
-      try {
-        setLoading(true);
-        const data = await fetchMapObservations(isPublicUser);
-        setObservations(data);
-      } catch (error) {
-        console.error('Failed to fetch observations:', error);
-        Alert.alert('Error', 'Failed to load observations data');
-        // setObservations(mockObservations); //flallback for demo
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchObservations();
+    } catch (err) {
+      console.log('Observation fetch error (user heatmap):', err);
+      Alert.alert('Error', 'Failed to load observations data');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // ======= FILTERING LOGIC =======
-  const filteredObservations = observations.filter((obs) => {
-    const speciesMatch =
-      selectedSpecies === 'All' ||
-      obs.species.common_name === selectedSpecies;
+  useEffect(() => {
+    loadObservations();
 
-    const dateMatch =
-      new Date(obs.created_at).getTime() >= selectedDate.getTime();
+    // Auto refresh every 30 seconds so new observations appear
+    const id = setInterval(() => {
+      loadObservations();
+    }, 30000);
 
-    return speciesMatch && dateMatch;
-  });
+    return () => clearInterval(id);
+  }, [loadObservations]);
 
-  // Get species list based on user type and search
-  const getAvailableSpecies = () => {
-    let availableObservations = observations;
-    
-    // For public users, filter out endangered species
-    if (isPublicUser) {
-      availableObservations = observations.filter(obs => !obs.species.is_endangered);
+  // Only unmasked observations are available for the public heatmap
+  const visibleObservations = useMemo(
+    () => observations.filter(o => !o.is_masked),
+    [observations]
+  );
+
+  const availableSpecies = useMemo(() => {
+    const names = Array.from(
+      new Set(
+        visibleObservations
+          .map(o => o.species?.common_name)
+          .filter(Boolean)
+      )
+    );
+    return ['All', ...names];  
+  }, [visibleObservations]);
+
+  const filteredObservations = useMemo(() => {
+    let list = visibleObservations;
+
+    if (endangeredFilter === 'endangered') {
+      list = list.filter(o => o.species?.is_endangered);
+    } else if (endangeredFilter === 'non') {
+      list = list.filter(o => !o.species?.is_endangered);
     }
-    
-    const species = ["All", ...new Set(availableObservations.map((o) => o.species.common_name))];
-    
-    // Filter by search text if provided
-    if (speciesSearch.trim()) {
-      return species.filter(sp => 
-        sp.toLowerCase().includes(speciesSearch.toLowerCase())
+
+    if (selectedSpecies !== 'All') {
+      list = list.filter(
+        o => o.species?.common_name === selectedSpecies
       );
     }
-    
-    return species;
-  };
 
-  const speciesList = getAvailableSpecies();
+    // Date filter: keep observations on or after selectedDate
+    list = list.filter(o => {
+      if (!o.created_at) return true;
+      const obsDate = new Date(o.created_at);
+      return obsDate.getTime() >= selectedDate.getTime();
+    });
+
+    return list;
+  }, [visibleObservations, endangeredFilter, selectedSpecies, selectedDate]);
+
+  const points = useMemo(
+    () =>
+      filteredObservations.map(obs => ({
+        latitude: obs.location_latitude,
+        longitude: obs.location_longitude,
+        weight: obs.species?.is_endangered ? 2 : 1,
+      })),
+    [filteredObservations]
+  );
+
+  useEffect(() => {
+    if (!filteredObservations.length) {
+      setSelectedObservation(null);
+      return;
+    }
+
+    if (
+      !selectedObservation ||
+      !filteredObservations.some(
+        o => o.observation_id === selectedObservation.observation_id
+      )
+    ) {
+      setSelectedObservation(filteredObservations[0]);
+    }
+  }, [filteredObservations, selectedObservation]);
+
+  useEffect(() => {
+    if (!selectedObservation || !mapRef.current) return;
+
+    if (
+      selectedObservation.location_latitude == null ||
+      selectedObservation.location_longitude == null
+    ) {
+      return;
+    }
+
+    mapRef.current.animateToRegion(
+      {
+        latitude: selectedObservation.location_latitude,
+        longitude: selectedObservation.location_longitude,
+        latitudeDelta: 0.25,
+        longitudeDelta: 0.25,
+      },
+      600
+    );
+  }, [selectedObservation]);
 
   const handleDateChange = (event, date) => {
     setShowDatePicker(false);
     if (date) setSelectedDate(date);
   };
 
-  const HEATMAP_RADIUS = Platform.OS === "android" ? 40 : 60;
+  const hasSelection = Boolean(selectedObservation);
 
-  if (loading) {
+  if (loading && observations.length === 0) {
     return (
-      <SafeAreaView style={s.container} edges={['top', 'left', 'right']}>
-        <View style={s.loadingContainer}>
-          <Text style={s.loadingText}>Loading map data...</Text>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading map data...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={s.container} edges={['top', 'left', 'right']}>
-      {/* Header - Updated to match ProfileScreen */}
-      <View style={[s.header, { paddingTop: insets.top + 12 }]}>
-        <View style={s.headerRow}>
-          
+    <SafeAreaView style={styles.container}>
+      {/* Header copied from admin, simplified for public view */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Species Heatmap</Text>
+        <Text style={styles.headerSubtitle}>
+          Only unmasked observations are shown to users.
+        </Text>
 
-          <Text style={s.headerTitle}>Heatmap & Observations</Text>
-          
-          <Pressable
-            style={s.filterButton}
-            onPress={() => setFilterVisible(true)}
-            android_ripple={{ color: '#00000010', borderless: false }}
+        <View style={styles.filterRow}>
+          <Text style={styles.filterLabel}>Species</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
           >
-            <Ionicons name="filter" size={22} color="#FFFFFF" />
-          </Pressable>
+            {availableSpecies.map(name => (
+              <TouchableOpacity
+                key={name}
+                style={[
+                  styles.filterChip,
+                  selectedSpecies === name && styles.filterChipActive,
+                ]}
+                onPress={() => setSelectedSpecies(name)}
+              >
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    selectedSpecies === name &&
+                      styles.filterChipTextActive,
+                  ]}
+                >
+                  {name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        <View style={styles.filterRow}>
+          <Text style={styles.filterLabel}>Endangered</Text>
+          <View style={styles.filterChipRow}>
+            {[
+              { key: 'all', label: 'All' },
+              { key: 'endangered', label: 'Endangered only' },
+              { key: 'non', label: 'Non endangered' },
+            ].map(opt => (
+              <TouchableOpacity
+                key={opt.key}
+                style={[
+                  styles.filterChip,
+                  endangeredFilter === opt.key &&
+                    styles.filterChipActive,
+                ]}
+                onPress={() => setEndangeredFilter(opt.key)}
+              >
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    endangeredFilter === opt.key &&
+                      styles.filterChipTextActive,
+                  ]}
+                >
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.filterRow}>
+          <Text style={styles.filterLabel}>Date from</Text>
+          <TouchableOpacity
+            style={styles.dateChip}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <Ionicons
+              name="calendar-outline"
+              size={14}
+              color="#0F4C81"
+            />
+            <Text style={styles.dateChipText}>
+              {selectedDate.toDateString()}
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
 
-      {/* Toggle Button - Updated styling */}
-      <View style={s.toggleContainer}>
-        <Pressable
-          style={[s.toggleButton, mode === "heatmap" && s.activeButton]}
-          onPress={() => setMode("heatmap")}
-          android_ripple={{ color: '#00000010', borderless: false }}
+      {showDatePicker && (
+        <DateTimePicker
+          value={selectedDate}
+          mode="date"
+          display="default"
+          onChange={handleDateChange}
+        />
+      )}
+
+      {/* Mode toggle row */}
+      <View style={styles.modeRow}>
+        <TouchableOpacity
+          onPress={() => setViewMode('heatmap')}
+          style={[
+            styles.modeButton,
+            viewMode === 'heatmap' && styles.modeButtonActive,
+            filteredObservations.length === 0 &&
+              styles.modeButtonDisabled,
+          ]}
+          disabled={filteredObservations.length === 0}
         >
-          <Text style={[s.toggleText, mode === "heatmap" && s.activeToggleText]}>Heatmap</Text>
-        </Pressable>
-        <Pressable
-          style={[s.toggleButton, mode === "pins" && s.activeButton]}
-          onPress={() => setMode("pins")}
-          android_ripple={{ color: '#00000010', borderless: false }}
-        >
-          <Text style={[s.toggleText, mode === "pins" && s.activeToggleText]}>Pins</Text>
-        </Pressable>
-      </View>
-
-      {/* Map */}
-      <MapView
-        ref={mapRef}
-        style={s.map}
-        initialRegion={{
-          latitude: 1.55,
-          longitude: 110.35,
-          latitudeDelta: 0.4,
-          longitudeDelta: 0.4,
-        }}
-        zoomEnabled={true}
-        scrollEnabled={true}
-        zoomControlEnabled={true}
-        rotateEnabled={true}
-        pitchEnabled={true}
-        onPress={() => setSelectedPlant(null)}
-      >
-        {/* HEATMAP MODE */}
-        {mode === "heatmap" && filteredObservations.length > 0 && (
-          <Heatmap
-            points={filteredObservations.map((obs) => ({
-              latitude: obs.location_latitude,
-              longitude: obs.location_longitude,
-              weight: 1,
-            }))}
-            radius={HEATMAP_RADIUS}
-            opacity={0.7}
-            gradient={{
-              colors: ["#ADFF2F", "#FFFF00", "#FF8C00", "#FF0000"],
-              startPoints: [0.01, 0.25, 0.5, 1],
-              colorMapSize: 256,
-            }}
-          />
-        )}
-
-        {/* PINS MODE */}
-        {mode === "pins" &&
-          filteredObservations.map((obs) => (
-            <Marker
-              key={obs.observation_id}
-              coordinate={{
-                latitude: obs.location_latitude,
-                longitude: obs.location_longitude,
-              }}
-              title={obs.species.common_name}
-              description={obs.location_name}
-              pinColor="#2F6C4F"
-              onPress={() => {
-                try {
-                  setSelectedPlant(obs);
-                } catch (e) {
-                  console.log("Error selecting plant:", e);
-                }
-              }}
-            />
-          ))}
-      </MapView>
-
-      {/* Map Controls */}
-      <View style={s.mapControls}>
-        <Pressable
-          style={s.mapControlButton}
-          onPress={() => {
-            if (mapRef.current) {
-              mapRef.current.animateToRegion({
-                latitude: 1.55,
-                longitude: 110.35,
-                latitudeDelta: 0.4,
-                longitudeDelta: 0.4,
-              }, 500);
+          <Ionicons
+            name="flame-outline"
+            size={16}
+            color={
+              filteredObservations.length === 0
+                ? '#A1A9B6'
+                : viewMode === 'heatmap'
+                ? '#0F4C81'
+                : '#5A6A78'
             }
-          }}
-          android_ripple={{ color: '#00000010', borderless: false }}
+          />
+          <Text
+            style={[
+              styles.modeButtonText,
+              viewMode === 'heatmap' &&
+                styles.modeButtonTextActive,
+              filteredObservations.length === 0 &&
+                styles.modeButtonTextDisabled,
+            ]}
+          >
+            Heatmap
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setViewMode('markers')}
+          style={[
+            styles.modeButton,
+            viewMode === 'markers' && styles.modeButtonActive,
+            filteredObservations.length === 0 &&
+              styles.modeButtonDisabled,
+          ]}
+          disabled={filteredObservations.length === 0}
         >
-          <Ionicons name="locate" size={20} color="#1F2A37" />
-        </Pressable>
+          <Ionicons
+            name="location-outline"
+            size={16}
+            color={
+              filteredObservations.length === 0
+                ? '#A1A9B6'
+                : viewMode === 'markers'
+                ? '#0F4C81'
+                : '#5A6A78'
+            }
+          />
+          <Text
+            style={[
+              styles.modeButtonText,
+              viewMode === 'markers' &&
+                styles.modeButtonTextActive,
+              filteredObservations.length === 0 &&
+                styles.modeButtonTextDisabled,
+            ]}
+          >
+            Markers
+          </Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Filter Modal - Updated styling */}
-      <Modal visible={filterVisible} transparent animationType="slide">
-        <View style={s.modalContainer}>
-          <View style={s.modalContent}>
-            <Text style={s.modalTitle}>Filter Observations</Text>
-
-            <Text style={s.filterLabel}>Search Species</Text>
-            <TextInput
-              style={s.searchInput}
-              placeholder="Type to search species..."
-              value={speciesSearch}
-              onChangeText={setSpeciesSearch}
-              placeholderTextColor="#64748B"
-            />
-
-            <Text style={s.filterLabel}>Select Species</Text>
-            <ScrollView 
-              style={s.speciesListContainer}
-              showsVerticalScrollIndicator={false}
-            >
-              {speciesList.length > 0 ? (
-                speciesList.map((sp) => (
-                  <Pressable
-                    key={sp}
-                    style={[
-                      s.speciesButton,
-                      selectedSpecies === sp && s.selectedSpecies,
-                    ]}
-                    onPress={() => {
-                      setSelectedSpecies(sp);
-                      setSpeciesSearch("");
-                    }}
-                    android_ripple={{ color: '#00000010', borderless: false }}
-                  >
-                    <Text style={[
-                      s.speciesText,
-                      selectedSpecies === sp && s.selectedSpeciesText
-                    ]}>{sp}</Text>
-                  </Pressable>
-                ))
-              ) : (
-                <Text style={s.noResultsText}>No species found</Text>
-              )}
-            </ScrollView>
-
-            <Text style={s.filterLabel}>Date After:</Text>
-            <Pressable
-              style={s.dateButton}
-              onPress={() => setShowDatePicker(true)}
-              android_ripple={{ color: '#00000010', borderless: false }}
-            >
-              <Text style={s.dateText}>
-                {selectedDate.toDateString()}
-              </Text>
-            </Pressable>
-
-            {showDatePicker && (
-              <DateTimePicker
-                value={selectedDate}
-                mode="date"
-                display="default"
-                onChange={handleDateChange}
+      {/* Map area */}
+      <View style={styles.mapWrapper}>
+        <MapView
+          ref={mapRef}
+          style={styles.map}
+          initialRegion={{
+            latitude: 1.55,
+            longitude: 110.35,
+            latitudeDelta: 0.3,
+            longitudeDelta: 0.3,
+          }}
+        >
+          {viewMode === 'heatmap' &&
+            points.length > 0 && (
+              <Heatmap
+                points={points}
+                radius={HEATMAP_RADIUS}
+                opacity={0.7}
+                gradient={{
+                  colors: ['#ADFF2F', '#FFFF00', '#FF8C00', '#FF0000'],
+                  startPoints: [0.01, 0.25, 0.5, 1],
+                  colorMapSize: 256,
+                }}
               />
             )}
 
-            <View style={s.modalButtons}>
-              <Pressable
-                style={s.resetButton}
-                onPress={() => {
-                  setSelectedSpecies("All");
-                  setSelectedDate(new Date("2025-01-01"));
-                  setSpeciesSearch("");
+          {viewMode === 'markers' &&
+            filteredObservations.map(obs => (
+              <Marker
+                key={obs.observation_id}
+                coordinate={{
+                  latitude: obs.location_latitude,
+                  longitude: obs.location_longitude,
                 }}
-                android_ripple={{ color: '#00000010', borderless: false }}
-              >
-                <Text style={s.resetText}>Reset</Text>
-              </Pressable>
+                title={obs.species?.common_name}
+                description={obs.location_name}
+                pinColor="#1F5E92"
+                onPress={() => setSelectedObservation(obs)}
+              />
+            ))}
+        </MapView>
+
+        {filteredObservations.length === 0 && (
+          <View style={styles.emptyOverlay}>
+            <Text style={styles.emptyOverlayText}>
+              No unmasked observations match the current filters.
+            </Text>
+          </View>
+        )}
+
+        {hasSelection && (
+          <TouchableOpacity
+            style={styles.detailsHandle}
+            onPress={() => setDetailsVisible(true)}
+          >
+            <Text style={styles.detailsHandleText}>
+              {selectedObservation?.species?.common_name ||
+                'Selected plant'}{' '}
+              •{' '}
+              {filteredObservations.length === 1
+                ? '1 observation'
+                : `${filteredObservations.length} observations`}
+            </Text>
+            <Ionicons name="chevron-up" size={16} color="#0F4C81" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Details bottom sheet, read only for users */}
+      <Modal
+        visible={detailsVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDetailsVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.detailsCard}>
+            <View style={styles.detailsHeaderRow}>
+              <Text style={styles.panelTitle}>
+                Observation details
+              </Text>
               <Pressable
-                style={s.closeButton}
-                onPress={() => setFilterVisible(false)}
-                android_ripple={{ color: '#00000010', borderless: false }}
+                onPress={() => setDetailsVisible(false)}
               >
-                <Text style={s.closeText}>Apply</Text>
+                <Ionicons
+                  name="close"
+                  size={18}
+                  color="#5B6C7C"
+                />
               </Pressable>
             </View>
+
+            {filteredObservations.length > 0 ? (
+              <ScrollView
+                style={styles.observationList}
+                contentContainerStyle={styles.observationListContent}
+              >
+                {filteredObservations.map(obs => {
+                  const isEndangeredObs =
+                    !!obs.species?.is_endangered;
+
+                  return (
+                    <View
+                      key={obs.observation_id}
+                      style={[
+                        styles.selectedCard,
+                        isEndangeredObs
+                          ? styles.cardEndangered
+                          : styles.cardNonEndangered,
+                      ]}
+                    >
+                      <View style={styles.selectedCardHeader}>
+                        {obs.photoUri ? (
+                          <Image
+                            source={{ uri: obs.photoUri }}
+                            style={styles.thumbImage}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={styles.thumbPlaceholder}>
+                            <Ionicons
+                              name="image-outline"
+                              size={20}
+                              color="#9CA3AF"
+                            />
+                          </View>
+                        )}
+
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <Text style={styles.selectedSpecies}>
+                            {obs.species?.common_name}
+                          </Text>
+                          <Text style={styles.selectedScientific}>
+                            {obs.species?.scientific_name}
+                          </Text>
+                        </View>
+
+                        <View
+                          style={[
+                            styles.statusPill,
+                            !isEndangeredObs && styles.statusPillNonEndangered,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.statusPillText,
+                              !isEndangeredObs && styles.statusPillTextNonEndangered,
+                            ]}
+                          >
+                            {isEndangeredObs ? 'ENDANGERED' : 'NOT ENDANGERED'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.cardRow}>
+                        <Ionicons
+                          name="albums-outline"
+                          size={16}
+                          color="#5B6C7C"
+                        />
+                        <Text style={styles.cardRowText}>
+                          Observation {obs.observation_id}
+                        </Text>
+                      </View>
+
+                      <View style={styles.cardRow}>
+                        <Ionicons
+                          name="pin-outline"
+                          size={16}
+                          color="#5B6C7C"
+                        />
+                        <View>
+                          <Text style={styles.detailLabel}>
+                            Location
+                          </Text>
+                          <Text style={styles.detailValue}>
+                            {obs.location_latitude != null &&
+                            obs.location_longitude != null
+                              ? `Lat ${obs.location_latitude.toFixed(
+                                  4
+                                )}, Lon ${obs.location_longitude.toFixed(
+                                  4
+                                )}`
+                              : 'Coordinates not available'}
+                          </Text>
+                          {obs.location_name ? (
+                            <Text style={styles.detailValue}>
+                              {obs.location_name}
+                            </Text>
+                          ) : null}
+                        </View>
+                      </View>
+
+                      <View style={styles.cardRow}>
+                        <Ionicons
+                          name="speedometer-outline"
+                          size={16}
+                          color="#5B6C7C"
+                        />
+                        <Text style={styles.detailLabel}>
+                          Confidence
+                        </Text>
+                        <Text style={styles.detailValue}>
+                          {obs.confidence_score != null
+                            ? `${Math.round(
+                                obs.confidence_score * 100
+                              )}%`
+                            : 'Not available'}
+                        </Text>
+                      </View>
+
+                      {obs.created_at && (
+                        <View style={styles.cardRow}>
+                          <Ionicons
+                            name="calendar-outline"
+                            size={16}
+                            color="#5B6C7C"
+                          />
+                          <Text style={styles.detailLabel}>
+                            Observed on
+                          </Text>
+                          <Text style={styles.detailValue}>
+                            {new Date(
+                              obs.created_at
+                            ).toLocaleString()}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            ) : (
+              <Text style={styles.emptyStateText}>
+                No unmasked observations match these filters.
+              </Text>
+            )}
           </View>
         </View>
       </Modal>
-
-      {/* Plant Detail Popup - Updated styling */}
-      {selectedPlant && selectedPlant.photo_url && (
-        <Modal transparent animationType="fade" visible={true}>
-          <View style={s.detailOverlay}>
-            <View style={s.detailCard}>
-              <Image
-                source={
-                  typeof selectedPlant.photo_url === "number"
-                    ? selectedPlant.photo_url
-                    : { uri: selectedPlant.photo_url }
-                }
-                style={s.detailImage}
-              />
-
-              <Text style={s.detailTitle}>
-                {selectedPlant.species?.common_name || "Unknown Plant"}
-              </Text>
-              <Text style={s.detailSub}>
-                {selectedPlant.species?.scientific_name || "N/A"}
-              </Text>
-              
-              <View style={s.detailInfoRow}>
-                <Ionicons name="location" size={16} color="#64748B" />
-                <Text style={s.detailInfo}>
-                  {selectedPlant.location_name || "Unknown Location"}
-                </Text>
-              </View>
-              
-              <View style={s.detailInfoRow}>
-                <Ionicons name="person" size={16} color="#64748B" />
-                <Text style={s.detailInfo}>
-                  {selectedPlant.user?.username || "Anonymous"}
-                </Text>
-              </View>
-              
-              <View style={s.detailInfoRow}>
-                <Ionicons name="calendar" size={16} color="#64748B" />
-                <Text style={s.detailInfo}>
-                  {selectedPlant.created_at
-                    ? new Date(selectedPlant.created_at).toDateString()
-                    : "Unknown Date"}
-                </Text>
-              </View>
-              
-              <View style={s.detailInfoRow}>
-                <Ionicons 
-                  name={selectedPlant.species?.is_endangered ? "warning" : "checkmark-circle"} 
-                  size={16} 
-                  color={selectedPlant.species?.is_endangered ? "#DC2626" : "#16A34A"} 
-                />
-                <Text style={[
-                  s.detailInfo,
-                  selectedPlant.species?.is_endangered ? s.endangeredText : s.commonText
-                ]}>
-                  {selectedPlant.species?.is_endangered
-                    ? "Endangered Species"
-                    : "Common Species"}
-                </Text>
-              </View>
-
-              <Text style={s.detailNotes}>
-                {selectedPlant.notes || "No notes provided."}
-              </Text>
-
-              <Pressable
-                onPress={() => setSelectedPlant(null)}
-                style={s.closeDetail}
-                android_ripple={{ color: '#00000010', borderless: false }}
-              >
-                <Text style={s.closeDetailText}>Close</Text>
-              </Pressable>
-            </View>
-          </View>
-        </Modal>
-      )}
     </SafeAreaView>
   );
 }
 
-// ===================== UPDATED STYLES =====================
-const s = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: '#F6F9F4' 
-  },
-  
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#F7F9FC' },
   loadingContainer: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: '#F6F9F4',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  
   loadingText: {
     fontSize: 16,
-    color: "#1F2A37",
-    fontWeight: '600'
+    fontWeight: '600',
+    color: '#1F2937',
   },
-
-  // Header styles matching ProfileScreen
   header: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
+    paddingTop: 0,
     paddingBottom: 16,
-    backgroundColor: '#F6F9F4',
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E3E8EE',
+    gap: 6,
   },
-  
-  headerRow: {
+  headerTitle: { fontSize: 24, fontWeight: '700', color: '#0F1C2E' },
+  headerSubtitle: { fontSize: 12, color: '#5B6C7C', marginTop: 2 },
+  modeRow: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E3E8EE',
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: '#EEF2F8',
+    gap: 8,
+  },
+  modeButtonActive: { backgroundColor: '#D7E6F7' },
+  modeButtonDisabled: { opacity: 0.7 },
+  modeButtonText: { fontSize: 13, fontWeight: '600', color: '#5A6A78' },
+  modeButtonTextActive: { color: '#0F4C81' },
+  modeButtonTextDisabled: { color: '#A1A9B6' },
+  mapWrapper: { flex: 1, position: 'relative' },
+  map: { flex: 1 },
+  detailsHandle: {
+    position: 'absolute',
+    bottom: 16,
+    left: 16,
+    right: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  
-  headerTitle: { 
-    fontSize: 20, 
-    fontWeight: 'bold', 
-    color: '#244332',
-    textAlign: 'center',
-    flex: 1,
-  },
-  
-  filterButton: {
-    padding: 10,
-    borderRadius: 999,
-    backgroundColor: '#2F6C4F',
-  },
-
-  // Toggle container
-  toggleContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginVertical: 16,
-    paddingHorizontal: 16,
-  },
-  
-  toggleButton: {
-    backgroundColor: "#E5ECF3",
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 999,
-    marginHorizontal: 6,
-  },
-  
-  activeButton: { 
-    backgroundColor: "#2F6C4F" 
-  },
-  
-  toggleText: { 
-    color: "#64748B", 
-    fontWeight: "700", 
-    fontSize: 14 
-  },
-  
-  activeToggleText: { 
-    color: "#FFFFFF" 
-  },
-
-  map: { 
-    flex: 1 
-  },
-  
-  mapControls: {
-    position: "absolute",
-    right: 16,
-    bottom: 100,
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
-    borderRadius: 25,
-    padding: 5,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
     elevation: 4,
   },
-  
-  mapControlButton: {
-    padding: 10,
-    borderRadius: 20,
+  detailsHandleText: {
+    fontSize: 13,
+    color: '#0F4C81',
+    fontWeight: '600',
   },
-
-  // Modal styles updated
-  modalContainer: {
+  modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'flex-end',
   },
-  
-  modalContent: {
-    backgroundColor: "#fff",
-    width: "85%",
-    borderRadius: 20,
-    padding: 20,
-    maxHeight: "80%",
-    elevation: 8,
-  },
-  
-  modalTitle: { 
-    fontSize: 18, 
-    fontWeight: "bold", 
-    color: '#244332',
-    marginBottom: 16,
-    textAlign: 'center'
-  },
-  
-  filterLabel: { 
-    marginTop: 16, 
-    fontWeight: "700", 
-    color: '#1F2A37',
-    fontSize: 14,
-    marginBottom: 6
-  },
-  
-  searchInput: {
-    backgroundColor: "#F5F5F5",
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
-    fontSize: 14,
-    color: '#1F2A37',
-  },
-  
-  speciesListContainer: {
-    maxHeight: 150,
-    marginVertical: 8,
-  },
-  
-  speciesButton: {
-    backgroundColor: "#F8FAFC",
+  detailsCard: {
+    backgroundColor: '#F7FAFF',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 10,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    paddingTop: 16,
+    paddingBottom: 24,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '75%',
   },
-  
-  selectedSpecies: { 
-    backgroundColor: "#2F6C4F",
-    borderColor: '#2F6C4F',
+  detailsHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
   },
-  
-  speciesText: { 
-    color: "#374151", 
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  
-  selectedSpeciesText: { 
-    color: "#FFFFFF" 
-  },
-  
-  noResultsText: {
-    textAlign: "center",
-    color: "#64748B",
-    fontStyle: "italic",
-    marginVertical: 20,
-    fontSize: 14,
-  },
-  
-  dateButton: {
-    backgroundColor: "#F8FAFC",
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    alignItems: "center",
-  },
-  
-  dateText: { 
-    color: "#1F2A37", 
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  
-  modalButtons: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 20,
-  },
-  
-  resetButton: {
-    backgroundColor: "#E5ECF3",
-    padding: 14,
-    borderRadius: 10,
-    flex: 1,
-    marginRight: 10,
-    alignItems: "center",
-  },
-  
-  resetText: { 
-    color: "#64748B", 
-    fontWeight: "700", 
-    fontSize: 14 
-  },
-  
-  closeButton: {
-    backgroundColor: "#2F6C4F",
-    padding: 14,
-    borderRadius: 10,
-    flex: 1,
-    alignItems: "center",
-  },
-  
-  closeText: { 
-    color: "#fff", 
-    fontWeight: "700", 
-    fontSize: 14 
-  },
-
-  // Detail popup styles
-  detailOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 16,
-  },
-  
-  detailCard: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    padding: 20,
-    width: "100%",
-    maxWidth: 400,
-    elevation: 8,
-  },
-  
-  detailImage: { 
-    width: "100%", 
-    height: 200, 
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  
-  detailTitle: { 
-    fontSize: 18, 
-    fontWeight: "800", 
-    color: '#0F172A',
-    marginBottom: 4,
-    textAlign: 'center'
-  },
-  
-  detailSub: { 
-    fontStyle: "italic", 
-    color: "#64748B", 
-    textAlign: 'center',
-    marginBottom: 16,
-    fontSize: 14,
-  },
-  
-  detailInfoRow: {
+  panelTitle: { fontSize: 16, fontWeight: '700', color: '#0F1C2E' },
+  filterRow: {
+    paddingHorizontal: 0,
+    paddingTop: 8,
+    paddingBottom: 4,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-    paddingHorizontal: 8,
+    justifyContent: 'space-between',
+    gap: 5,
   },
-  
-  detailInfo: { 
-    color: "#334155", 
-    fontSize: 14,
+  filterLabel: {
+    fontSize: 13,
     fontWeight: '600',
-    marginLeft: 8,
-    flex: 1,
+    color: '#1F2A37',
   },
-  
-  endangeredText: { 
-    color: "#DC2626", 
-    fontWeight: "700" 
+  filterChipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  
-  commonText: { 
-    color: "#16A34A", 
-    fontWeight: "700" 
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#D0D7E2',
+    backgroundColor: '#FFFFFF',
+    marginRight: 5,
   },
-  
-  detailNotes: {
+  filterChipActive: {
+    backgroundColor: '#D7E6F7',
+    borderColor: '#0F4C81',
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#4B5563',
+  },
+  filterChipTextActive: {
+    color: '#0F4C81',
+    fontWeight: '600',
+  },
+  dateChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#E3ECF9',
+    gap: 6,
+  },
+  dateChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0F4C81',
+  },
+  observationList: {
     marginTop: 12,
-    fontStyle: "italic",
-    color: "#555",
-    fontSize: 14,
-    lineHeight: 20,
-    paddingHorizontal: 8,
   },
-  
-  closeDetail: {
-    backgroundColor: "#2F6C4F",
+  observationListContent: {
+    paddingBottom: 16,
+  },
+  selectedCard: {
     marginTop: 16,
-    padding: 14,
-    borderRadius: 10,
-    alignItems: "center",
+    padding: 16,
+    borderRadius: 18,
+    borderWidth: 1,
+    backgroundColor: '#FFFFFF',
   },
-  
-  closeDetailText: { 
-    color: "#fff", 
-    fontWeight: "700", 
-    fontSize: 14 
+  cardEndangered: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FCA5A5',
+  },
+  cardNonEndangered: {
+    backgroundColor: '#ECFDF3',
+    borderColor: '#4ADE80',
+  },
+  selectedCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    gap: 12,
+  },
+  selectedSpecies: { fontSize: 16, fontWeight: '700', color: '#0F1C2E' },
+  selectedScientific: { fontSize: 13, color: '#4B5563', marginTop: 2 },
+  statusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: '#FEE2E2',
+  },
+  statusPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B91C1C',
+  },
+  statusPillNonEndangered: {
+    backgroundColor: '#DCFCE7',
+  },
+  statusPillTextNonEndangered: {
+    color: '#166534',
+  },
+  cardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  cardRowText: { fontSize: 13, color: '#374151' },
+  detailLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4B5563',
+  },
+  detailValue: {
+    fontSize: 13,
+    color: '#111827',
+  },
+  emptyStateText: {
+    marginTop: 16,
+    fontSize: 13,
+    color: '#5B6C7C',
+  },
+  emptyOverlay: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    top: 16,
+    padding: 10,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+  },
+  emptyOverlayText: {
+    fontSize: 12,
+    color: '#4B5563',
+    textAlign: 'center',
+  },
+  thumbImage: {
+    width: 52,
+    height: 52,
+    borderRadius: 12,
+    backgroundColor: '#E5E7EB',
+  },
+  thumbPlaceholder: {
+    width: 52,
+    height: 52,
+    borderRadius: 12,
+    backgroundColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

@@ -635,59 +635,111 @@ export default function Heatmap() {
   const [showPlantModal, setShowPlantModal] = useState(false);
   const mapRef = useRef(null);
 
-  const syncSelectionWithRows = useCallback((nextRows) => {
-    setSelectedObservation((prev) => {
-      if (!prev) return prev;
-      return nextRows.find(
-        (row) => row.observation_id === prev.observation_id
-      ) || null;
+
+
+  // Filter and sort
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter(r =>
+      !q ||
+      r.observation_id.toLowerCase().includes(q) ||
+      r.species.common_name.toLowerCase().includes(q) ||
+      r.location_name.toLowerCase().includes(q)
+    );
+  }, [rows, search]);
+
+  const sorted = useMemo(() => {
+    const copy = [...filtered];
+
+    copy.sort((a, b) => {
+      let A;
+      let B;
+
+      if (sortBy === "species.common_name") {
+        A = a.species.common_name;
+        B = b.species.common_name;
+      } else if (sortBy === "location_name") {
+        A = a.location_name;
+        B = b.location_name;
+      } else {
+        A = a[sortBy];
+        B = b[sortBy];
+      }
+
+      if (typeof A === "number" && typeof B === "number") {
+        return sortDir === "asc" ? A - B : B - A;
+      }
+
+      const sa = (A ?? "").toString().toLowerCase();
+      const sb = (B ?? "").toString().toLowerCase();
+
+      if (sa < sb) return sortDir === "asc" ? -1 : 1;
+      if (sa > sb) return sortDir === "asc" ? 1 : -1;
+      return 0;
     });
-  }, []);
 
-  // Load data
+    return copy;
+  }, [filtered, sortBy, sortDir]);
+
+    // Load data - behaves like AdminHeatmapScreen
   useEffect(() => {
-    let isActive = true;
+    let cancelled = false;
 
-    const applyRows = (nextRows) => {
-      if (!isActive) return;
-      setRows(nextRows);
-      syncSelectionWithRows(nextRows);
-    };
+    const load = async () => {
+      if (cancelled) return;
 
-    (async () => {
       setLoading(true);
       setError("");
+
       try {
         const data = await fetchHeatmapObservations({
           scope: "endangered+nearby",
         });
 
-        if (!isActive) return;
+        const nextRows = data.length > 0 ? data : MOCK;
 
-        if (data.length > 0) {
-          applyRows(data);
-        } else {
-          applyRows(MOCK);
+        if (cancelled) return;
+
+        setRows(nextRows);
+
+        setSelectedObservation((prev) => {
+          if (prev) {
+            const stillHere = nextRows.find(
+              (r) => r.observation_id === prev.observation_id
+            );
+            if (stillHere) return stillHere;
+          }
+          return nextRows[0] || null;
+        });
+
+        if (data.length === 0) {
           setError("Heatmap API returned no observations. Showing mock data.");
         }
       } catch (err) {
-        if (!isActive) return;
+        if (cancelled) return;
         console.error("[Heatmap] failed to load observations", err);
-        applyRows(MOCK);
+        setRows(MOCK);
         const message =
           err?.response?.data?.message || err?.message || "API unavailable";
         setError(`Showing mock data (${message}).`);
       } finally {
-        if (isActive) {
+        if (!cancelled) {
           setLoading(false);
         }
       }
-    })();
+    };
+
+    // initial load
+    load();
+
+    // periodic refresh - same idea as the app
+    const id = setInterval(load, 30000);
 
     return () => {
-      isActive = false;
+      cancelled = true;
+      clearInterval(id);
     };
-  }, [syncSelectionWithRows]);
+  }, []);
 
   // Drag handlers
   const onMouseDown = useCallback((e) => {
@@ -802,33 +854,24 @@ export default function Heatmap() {
     }
   }, [selectedObservation, rows]);
 
-  // Filter and sort
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return rows.filter(r =>
-      !q ||
-      r.observation_id.toLowerCase().includes(q) ||
-      r.species.common_name.toLowerCase().includes(q) ||
-      r.location_name.toLowerCase().includes(q)
-    );
-  }, [rows, search]);
 
-  const sorted = useMemo(() => {
-    const copy = [...filtered];
-    copy.sort((a, b) => {
-      const A = a[sortBy];
-      const B = b[sortBy];
-      if (typeof A === "number" && typeof B === "number") {
-        return sortDir === "asc" ? A - B : B - A;
-      }
-      const sa = (A ?? "").toString().toLowerCase();
-      const sb = (B ?? "").toString().toLowerCase();
-      if (sa < sb) return sortDir === "asc" ? -1 : 1;
-      if (sa > sb) return sortDir === "asc" ? 1 : -1;
-      return 0;
-    });
-    return copy;
-  }, [filtered, sortBy, sortDir]);
+
+  // const sorted = useMemo(() => {
+  //   const copy = [...filtered];
+  //   copy.sort((a, b) => {
+  //     const A = a[sortBy];
+  //     const B = b[sortBy];
+  //     if (typeof A === "number" && typeof B === "number") {
+  //       return sortDir === "asc" ? A - B : B - A;
+  //     }
+  //     const sa = (A ?? "").toString().toLowerCase();
+  //     const sb = (B ?? "").toString().toLowerCase();
+  //     if (sa < sb) return sortDir === "asc" ? -1 : 1;
+  //     if (sa > sb) return sortDir === "asc" ? 1 : -1;
+  //     return 0;
+  //   });
+  //   return copy;
+  // }, [filtered, sortBy, sortDir]);
 
   const setSort = (key) => {
     if (sortBy === key) {
@@ -839,29 +882,40 @@ export default function Heatmap() {
     }
   };
 
-  // Heatmap points
-  const heatPts = useMemo(() => {
-    const observationsToUse = selectedObservation 
-      ? rows.filter(r => r.species.species_id === selectedObservation.species.species_id)
-      : rows.filter(r => !r.is_masked);
-
-    return observationsToUse.map(r => ({
-      lat: r.location_latitude,
-      lng: r.location_longitude,
-      intensity: r.species.is_endangered ? 1.8 : 1.0
-    }));
-  }, [rows, selectedObservation]);
-
-  // Filtered observations for selected species
+   // Filtered observations for selected species
   const filteredObservations = useMemo(() => {
     if (!selectedObservation) return [];
-    return rows.filter(obs => obs.species.species_id === selectedObservation.species.species_id);
+    return rows.filter(
+      (obs) =>
+        obs.species?.species_id === selectedObservation.species.species_id
+    );
   }, [rows, selectedObservation]);
 
-  // Check if any observations are visible for user
-  const visibleForUser = selectedObservation 
-    ? filteredObservations.some(obs => !obs.is_masked)
-    : true;
+  // Heatmap points
+  const heatPts = useMemo(() => {
+    const source = selectedObservation ? filteredObservations : rows;
+
+    return source
+      .filter(
+        (r) =>
+          Number.isFinite(Number(r.location_latitude)) &&
+          Number.isFinite(Number(r.location_longitude))
+      )
+      .map((r) => ({
+        lat: Number(r.location_latitude),
+        lng: Number(r.location_longitude),
+        intensity: r.species.is_endangered ? 1.8 : 1.0,
+      }));
+  }, [rows, selectedObservation, filteredObservations]);
+
+  const hasSelection = !!selectedObservation;
+  const isEndangered = hasSelection
+    ? !!selectedObservation.species?.is_endangered
+    : false;
+  const isMasked = hasSelection ? !!selectedObservation.is_masked : false;
+
+  // Same rule as AdminHeatmapScreen - non endangered always visible for users
+  const visibleForUser = hasSelection ? !isEndangered || !isMasked : true;
 
   const leftFlexBasis = `calc(100% - ${rightWidth + 8}px)`;
 
@@ -958,9 +1012,7 @@ export default function Heatmap() {
           <div className="header">
             <h2>Species Heatmap</h2>
             <div className="muted">
-              {selectedObservation 
-                ? "Review distribution controls for the selected plant." 
-                : "Select a plant to view heatmap distribution."}
+              Select a plant and control which locations are visible to end users.
             </div>
             {error && <div className="muted" style={{ marginTop: 6, color: "#a3410e" }}>{error}</div>}
           </div>

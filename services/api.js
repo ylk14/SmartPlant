@@ -1,5 +1,5 @@
 const PORT = 3000;
-const HOST = '192.168.88.39';
+const HOST = '192.168.0.112';
 // const HOST = '172.17.26.48';
 export const API_BASE_URL = `http://${HOST}:${PORT}/api`;
 

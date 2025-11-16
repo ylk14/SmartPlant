@@ -126,28 +126,26 @@ const extractArray = (payload) => {
 };
 
 export async function fetchHeatmapObservations(options = {}) {
-  const {
-    scope = "endangered+nearby",
-    status,
-    includeMasked,
-    page,
-    pageSize,
-  } = options;
+  // You can keep options if you want to filter client-side later
+  const { includeMasked } = options;
 
-  const params = { scope };
-  if (status) params.status = status;
-  if (page) params.page = page;
-  if (pageSize) params.page_size = pageSize;
-  if (typeof includeMasked === "boolean") {
-    params.include_masked = includeMasked ? 1 : 0;
-  }
+  // Get all map observations for admin
+  const response = await apiClient.get("/api/map/observations", {
+    params: { role: "admin" },
+  });
 
-  const response = await apiClient.get("/api/admin/observations", { params });
-  const normalized = extractArray(response.data)
+  const all = extractArray(response.data)
     .map(normalizeObservation)
     .filter(Boolean);
 
-  return normalized;
+  // Optional: respect includeMasked flag on frontend
+  if (typeof includeMasked === "boolean") {
+    return all.filter((item) =>
+      includeMasked ? true : !item.is_masked
+    );
+  }
+
+  return all;
 }
 
 export async function updateObservationMask(observationId, isMasked) {
@@ -159,7 +157,7 @@ export async function updateObservationMask(observationId, isMasked) {
     typeof isMasked === "boolean" ? { is_masked: isMasked } : undefined;
 
   const { data } = await apiClient.patch(
-    `/api/admin/observations/${observationId}/mask`,
+    `/api/admin/map/observations/${observationId}/mask`,
     payload ?? {}
   );
 

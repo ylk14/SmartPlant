@@ -1,9 +1,15 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { fetchFlaggedUnsure, updateObservationStatus } from "../services/flagged";
 import SearchIcon from "@mui/icons-material/Search";
 import LocalFloristIcon from "@mui/icons-material/LocalFlorist";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import WarningIcon from "@mui/icons-material/Warning";
+import {
+  fetchFlaggedUnsure,
+  updateObservationStatus,
+  fetchAllSpecies,
+  confirmExistingSpecies,
+  confirmNewSpecies,
+} from "../services/flagged";
 
 const MOCK_FLAGGED = [
     {
@@ -38,6 +44,18 @@ const MOCK_FLAGGED = [
     },
   ];
 
+const formatCoords = (lat, lon) => {
+  if (lat == null || lon == null) return "Not available";
+
+  const nLat = Number(lat);
+  const nLon = Number(lon);
+
+  if (!Number.isFinite(nLat) || !Number.isFinite(nLon)) return "Not available";
+  if (nLat === 0 && nLon === 0) return "Not available";
+
+  return `${nLat.toFixed(5)}, ${nLon.toFixed(5)}`;
+};
+
 export default function FlaggedPlants() {
   const [items, setItems] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -45,11 +63,31 @@ export default function FlaggedPlants() {
   const [selectedObservation, setSelectedObservation] = useState(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
-  const [showIdentifyModal, setShowIdentifyModal] = useState(false);
+  // const [showIdentifyModal, setShowIdentifyModal] = useState(false); 
   const [identifiedName, setIdentifiedName] = useState("");
   const [error, setError] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [reviewNotes, setReviewNotes] = useState("");
+
+  const [identifyVisible, setIdentifyVisible] = useState(false);
+  const [identifyLoading, setIdentifyLoading] = useState(false);
+  const [mode, setMode] = useState("existing");
+  const [speciesOptions, setSpeciesOptions] = useState([]);
+  const [selectedSpeciesId, setSelectedSpeciesId] = useState(null);
+  const [newScientificName, setNewScientificName] = useState("");
+  const [newCommonName, setNewCommonName] = useState("");
+  const [newIsEndangered, setNewIsEndangered] = useState(false);
+  const [newDescription, setNewDescription] = useState("");
+  
+
+  const normalizeScientificName = (input) =>
+    input
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "_")
+      .replace(/[^a-z_]/g, "")
+      .replace(/_+/g, "_");
 
   const loadFlagged = useCallback(async () => {
     setLoading(true);
@@ -116,12 +154,12 @@ export default function FlaggedPlants() {
     setShowReviewModal(false);
     setSelectedObservation(null);
     setShowImageModal(false);
-    setShowIdentifyModal(false);
+    setIdentifyVisible(false);      // IMPORTANT
     setIdentifiedName("");
+    setReviewNotes("");
     setActionError(null);
     setActionLoading(false);
-    // Restore body scroll
-    document.body.style.overflow = 'unset';
+    document.body.style.overflow = "unset";
   };
 
   const handleImageModal = (show) => {
@@ -138,10 +176,11 @@ export default function FlaggedPlants() {
     document.body.style.overflow = show ? 'hidden' : 'unset';
   };
 
+  // Approve
   const handleApprove = async () => {
     if (!selectedObservation) return;
     const observationId = selectedObservation.observation_id;
-    if (!window.confirm('Are you sure you want to approve this observation?')) {
+    if (!window.confirm("Are you sure you want to approve this observation?")) {
       return;
     }
 
@@ -149,7 +188,11 @@ export default function FlaggedPlants() {
     setActionError(null);
 
     try {
-      await updateObservationStatus(observationId, { status: "verified" });
+      await updateObservationStatus(observationId, {
+        status: "verified",
+        notes: reviewNotes,
+      });
+
       setItems((prev) =>
         prev.filter((item) => item.observation_id !== observationId)
       );
@@ -162,9 +205,125 @@ export default function FlaggedPlants() {
     }
   };
 
-  const handleIdentify = () => {
+  // Reject
+  const handleReject = async () => {
+    if (!selectedObservation) return;
+    const observationId = selectedObservation.observation_id;
+    if (!window.confirm("Are you sure you want to reject this observation?")) {
+      return;
+    }
+
+    setActionLoading(true);
     setActionError(null);
-    handleIdentifyModal(true);
+
+    try {
+      await updateObservationStatus(observationId, {
+        status: "rejected",
+        notes: reviewNotes,
+      });
+
+      setItems((prev) =>
+        prev.filter((item) => item.observation_id !== observationId)
+      );
+      handleCloseModal();
+    } catch (e) {
+      console.error(e);
+      setActionError("Failed to reject observation. Please try again.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleIdentify = async () => {
+    if (!selectedObservation) return;
+
+    setIdentifyVisible(true);       // show identify card
+    setMode("existing");
+    setSelectedSpeciesId(null);
+    setIdentifiedName("");
+    setNewScientificName("");
+    setNewCommonName("");
+    setNewIsEndangered(false);
+    setNewDescription("");
+
+    try {
+      setIdentifyLoading(true);
+      if (!speciesOptions.length) {
+        const list = await fetchAllSpecies();
+        setSpeciesOptions(list);
+      }
+    } catch (e) {
+      console.error("[Identify] failed to load species list", e);
+    } finally {
+      setIdentifyLoading(false);
+    }
+  };
+
+  const handleConfirmExistingSpecies = async () => {
+    if (!selectedObservation) return;
+    const observationId = selectedObservation.observation_id;
+
+    const name = identifiedName.trim();
+
+    if (!selectedSpeciesId && !name) {
+      alert("Please select an existing species or type the scientific name.");
+      return;
+    }
+
+    const payload = {};
+    if (selectedSpeciesId) payload.species_id = selectedSpeciesId;
+    if (name) payload.scientific_name = name;
+
+    try {
+      setIdentifyLoading(true);
+      await confirmExistingSpecies(observationId, payload);
+
+      // remove from queue since it is now verified
+      setItems((prev) =>
+        prev.filter((item) => item.observation_id !== observationId)
+      );
+      setIdentifyVisible(false);
+      handleCloseModal();
+    } catch (e) {
+      console.error("Confirm existing species error:", e);
+      alert("Could not confirm existing species.");
+    } finally {
+      setIdentifyLoading(false);
+    }
+  };
+
+  const handleConfirmNewSpecies = async () => {
+    if (!selectedObservation) return;
+    const observationId = selectedObservation.observation_id;
+
+    const raw = newScientificName.trim();
+    if (!raw) {
+      alert("Scientific name is required for a new species.");
+      return;
+    }
+
+    const normalized = normalizeScientificName(raw);
+
+    try {
+      setIdentifyLoading(true);
+      await confirmNewSpecies(observationId, {
+        scientific_name: normalized,
+        common_name: newCommonName.trim(),
+        is_endangered: newIsEndangered ? 1 : 0,
+        description: newDescription.trim(),
+      });
+
+      setItems((prev) =>
+        prev.filter((item) => item.observation_id !== observationId)
+      );
+      setIdentifyVisible(false);
+      handleCloseModal();
+    } catch (e) {
+      console.error("Confirm new species error:", e);
+      alert("Could not save new species.");
+    } finally {
+      setIdentifyLoading(false);
+    }
   };
 
   const handleSaveIdentification = async () => {
@@ -360,7 +519,7 @@ export default function FlaggedPlants() {
           .confirm-button {
             padding: 10px 18px;
             border-radius: 10px;
-            backgroundColor: #1E88E5;
+            background-color: #1E88E5;
             border: none;
             font-size: 13px;
             font-weight: 700;
@@ -397,6 +556,12 @@ export default function FlaggedPlants() {
             align-items: center;
             gap: 4px;
             margin-top: 4px;
+          }
+
+          .review-footer {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: flex-end; /* Approve / Reject / Identify aligned neatly */
           }
         `}
       </style>
@@ -489,61 +654,98 @@ export default function FlaggedPlants() {
 
         {/* Review Modal */}
         {showReviewModal && selectedObservation && (
-          <div className="modal-overlay" onClick={handleCloseModal}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-              <button className="modal-close" onClick={handleCloseModal}>×</button>
-              
-              <div className="modal-scroll">
-                {/* FIXED: Stable image container */}
-                <div className="photo-wrapper" onClick={() => handleImageModal(true)}>
-                  <img 
-                    src={selectedObservation.photo} 
-                    alt={selectedObservation.plant_name}
-                    className="photo"
-                    onError={(e) => {
-                      e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yMDAgMTUwQzIxMy44MDcgMTUwIDIyNSAxMzguODA3IDIyNSAxMjVDMjI1IDExMS4xOTMgMjEzLjgwNyAxMDAgMjAwIDEwMEMxODYuMTkzIDEwMCAxNzUgMTExLjE5MyAxNzUgMTI1QzE3IDEzOC44MDcgMTg2LjE5MyAxNTAgMjAwIDE1MFoiIGZpbGw9IiM5Q0E1QjkiLz4KPC9zdmc+';
-                    }}
-                  />
-                  <div className="resize-badge">
-                    <ZoomInIcon style={{ fontSize: 16, color: 'white' }} />
-                  </div>
-                </div>
+          <div
+            style={styles.fullscreenOverlay}
+            onClick={handleCloseModal}
+          >
+            {!identifyVisible && (
+              <div
+                className="modal-content"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button className="modal-close" onClick={handleCloseModal}>
+                  ×
+                </button>
 
-                <h1 style={styles.modalTitle}>{selectedObservation.plant_name}</h1>
-                <div style={styles.modalSubtitle}>Observation {selectedObservation.observation_id}</div>
-
-                {/* Confidence section with low confidence note */}
-                <div style={styles.section}>
-                  <div style={styles.sectionLabel}>Confidence</div>
-                  <div style={styles.confidenceValue}>
-                    {Math.round(selectedObservation.confidence * 100)}%
-                  </div>
-                  {isLowConfidence(selectedObservation.confidence) && (
-                    <div className="low-confidence-badge">Low confidence - requires manual review</div>
-                  )}
-                </div>
-
-                {/* Location section with endangered badge */}
-                <div style={styles.section}>
-                  <div style={styles.sectionLabel}>Location</div>
-                  <div style={styles.sectionValue}>{selectedObservation.location}</div>
-                  {selectedObservation.is_endangered && (
-                    <div className="endangered-badge">
-                      <WarningIcon style={{ fontSize: 16 }} />
-                      Endangered Species
+                <div className="modal-scroll">
+                  {/* Image */}
+                  <div
+                    className="photo-wrapper"
+                    onClick={() => handleImageModal(true)}
+                  >
+                    <img
+                      src={selectedObservation.photo}
+                      alt={selectedObservation.plant_name}
+                      className="photo"
+                      onError={(e) => {
+                        e.target.src =
+                          "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yMDAgMTUwQzIxMy44MDcgMTUwIDIyNSAxMzguODA3IDIyNSAxMjVDMjI1IDExMS4xOTMgMjEzLjgwNyAxMDAgMjAwIDEwMEMxODYuMTkzIDEwMCAxNzUgMTExLjE5MyAxNzUgMTI1QzE3IDEzOC44MDcgMTg2LjE5MyAxNTAgMjAwIDE1MFoiIGZpbGw9IiM5Q0E1QjkiLz4KPC9zdmc+";
+                      }}
+                    />
+                    <div className="resize-badge">
+                      <ZoomInIcon style={{ fontSize: 16, color: "white" }} />
                     </div>
+                  </div>
+
+                  {/* Title */}
+                  <h1 style={styles.modalTitle}>
+                    {selectedObservation.plant_name}
+                  </h1>
+                  <div style={styles.modalSubtitle}>
+                    Observation {selectedObservation.observation_id}
+                  </div>
+
+                  {/* Confidence */}
+                  <div style={styles.section}>
+                    <div style={styles.sectionLabel}>Confidence</div>
+                    <div style={styles.confidenceValue}>
+                      {Number.isFinite(
+                        Number(selectedObservation.confidence)
+                      )
+                        ? `${Math.round(
+                            Number(selectedObservation.confidence) * 100
+                          )}%`
+                        : "—"}
+                    </div>
+                    {isLowConfidence(selectedObservation.confidence) && (
+                      <div className="low-confidence-badge">
+                        Low confidence - requires manual review
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Location */}
+                  <div style={styles.section}>
+                    <div style={styles.sectionLabel}>Location</div>
+                    <div style={styles.sectionValue}>
+                      {formatCoords(
+                        selectedObservation.location_latitude,
+                        selectedObservation.location_longitude
+                      )}
+                    </div>
+                    {selectedObservation.is_endangered && (
+                      <div className="endangered-badge">
+                        <WarningIcon style={{ fontSize: 16 }} />
+                        Endangered Species
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Submitted */}
+                  <div style={styles.section}>
+                    <div style={styles.sectionLabel}>Submitted</div>
+                    <div style={styles.sectionValue}>
+                      {formatDate(selectedObservation.submitted_at)}
+                    </div>
+                    <div style={styles.sectionMeta}>
+                      Flagged by {selectedObservation.user}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  {actionError && (
+                    <div style={styles.actionError}>{actionError}</div>
                   )}
-                </div>
-
-                {/* Submission details */}
-                <div style={styles.section}>
-                  <div style={styles.sectionLabel}>Submitted</div>
-                  <div style={styles.sectionValue}>{formatDate(selectedObservation.submitted_at)}</div>
-                  <div style={styles.sectionMeta}>Flagged by {selectedObservation.user}</div>
-                </div>
-
-                {/* Action buttons */}
-                  {actionError && <div style={styles.actionError}>{actionError}</div>}
                   <div style={styles.actionsRow}>
                     <button
                       style={styles.approveButton}
@@ -551,17 +753,27 @@ export default function FlaggedPlants() {
                       disabled={actionLoading}
                     >
                       {actionLoading ? "Saving..." : "Approve"}
-                  </button>
+                    </button>
+
+                    <button
+                      style={styles.rejectButton}
+                      onClick={handleReject}
+                      disabled={actionLoading}
+                    >
+                      Reject
+                    </button>
+
                     <button
                       style={styles.identifyButton}
                       onClick={handleIdentify}
                       disabled={actionLoading}
                     >
-                    Identify
-                  </button>
+                      Identify
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -628,39 +840,159 @@ export default function FlaggedPlants() {
           </div>
         )}
 
-        {/* Identify Modal */}
-        {showIdentifyModal && (
-          <div className="identify-modal-overlay" onClick={() => handleIdentifyModal(false)}>
-            <div className="identify-modal-content" onClick={(e) => e.stopPropagation()}>
-              <h3 className="identify-title">Confirm Plant Identity</h3>
-              <div className="identify-label">Plant Name</div>
-              <input
-                type="text"
-                className="identify-input"
-                value={identifiedName}
-                  onChange={(e) => setIdentifiedName(e.target.value)}
-                placeholder="Enter confirmed plant name"
-                autoFocus
-              />
-                {actionError && <div style={styles.actionError}>{actionError}</div>}
-              <div className="identify-actions">
-                <button 
-                  className="cancel-button"
-                  onClick={() => handleIdentifyModal(false)}
+        {identifyVisible && (
+          <div style={styles.fullscreenOverlay}>
+            <div style={styles.identifyCard}>
+              <div style={styles.identifyTitleRow}>
+                <div style={styles.identifyTitle}>Confirm Plant Identity</div>
+                <button
+                  style={styles.identifyClose}
+                  onClick={() => setIdentifyVisible(false)}
+                >
+                  ×
+                </button>
+              </div>
+
+              <div style={styles.toggleRow}>
+                <button
+                  type="button"
+                  style={{
+                    ...styles.toggleBtn,
+                    ...(mode === "existing" ? styles.toggleBtnActive : null),
+                  }}
+                  onClick={() => setMode("existing")}
+                >
+                  Existing species
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    ...styles.toggleBtn,
+                    ...(mode === "new" ? styles.toggleBtnActive : null),
+                  }}
+                  onClick={() => setMode("new")}
+                >
+                  New species
+                </button>
+              </div>
+
+              {mode === "existing" && (
+                <>
+                  <div style={styles.identifyLabel}>Select existing species</div>
+                  <select
+                    style={styles.identifySelect}
+                    value={selectedSpeciesId || ""}
+                    onChange={(e) => {
+                      const value = e.target.value ? Number(e.target.value) : null;
+                      setSelectedSpeciesId(value);
+
+                      const selected = speciesOptions.find(
+                        (s) => s.species_id === value
+                      );
+                      if (selected && selected.scientific_name) {
+                        setIdentifiedName(selected.scientific_name);
+                      }
+                    }}
+                  >
+                    <option value="">Select a species...</option>
+                    {speciesOptions.map((s) => (
+                      <option key={s.species_id} value={s.species_id}>
+                        {s.display_name ||
+                          s.common_name ||
+                          s.scientific_name ||
+                          `Species ${s.species_id}`}
+                      </option>
+                    ))}
+                  </select>
+
+                  <div style={styles.identifyLabel}>Or type scientific name</div>
+                  <input
+                    style={styles.identifyInput}
+                    value={identifiedName}
+                    onChange={(e) => setIdentifiedName(e.target.value)}
+                    placeholder="e.g. casuarina_equisetifolia"
+                  />
+                </>
+              )}
+
+              {mode === "new" && (
+                <>
+                  <div style={styles.identifyLabel}>Scientific name</div>
+                  <input
+                    style={styles.identifyInput}
+                    value={newScientificName}
+                    onChange={(e) => setNewScientificName(e.target.value)}
+                    placeholder="e.g. Casuarina equisetifolia"
+                  />
+
+                  <div style={styles.identifyLabel}>Common name</div>
+                  <input
+                    style={styles.identifyInput}
+                    value={newCommonName}
+                    onChange={(e) => setNewCommonName(e.target.value)}
+                    placeholder="e.g. Casuarina"
+                  />
+
+                  <div style={styles.switchRow}>
+                    <span style={styles.identifyLabel}>Is endangered</span>
+                    <input
+                      type="checkbox"
+                      checked={newIsEndangered}
+                      onChange={(e) => setNewIsEndangered(e.target.checked)}
+                    />
+                  </div>
+
+                  <div style={styles.identifyLabel}>Description</div>
+                  <textarea
+                    style={{ ...styles.identifyInput, minHeight: 80 }}
+                    value={newDescription}
+                    onChange={(e) => setNewDescription(e.target.value)}
+                    placeholder="Short description of this species"
+                  />
+                </>
+              )}
+
+              <div style={styles.identifyActions}>
+                <button
+                  type="button"
+                  style={styles.cancelButton}
+                  onClick={() => setIdentifyVisible(false)}
                 >
                   Cancel
                 </button>
-                <button 
-                  className="confirm-button"
-                    disabled={!identifiedName.trim() || actionLoading}
-                  onClick={handleSaveIdentification}
+                <button
+                  type="button"
+                  style={{
+                    ...styles.confirmButton,
+                    opacity:
+                      (mode === "existing" &&
+                        !selectedSpeciesId &&
+                        !identifiedName.trim()) ||
+                      (mode === "new" && !newScientificName.trim())
+                        ? 0.6
+                        : 1,
+                  }}
+                  disabled={
+                    identifyLoading ||
+                    (mode === "existing"
+                      ? !selectedSpeciesId && !identifiedName.trim()
+                      : !newScientificName.trim())
+                  }
+                  onClick={() => {
+                    if (mode === "existing") {
+                      handleConfirmExistingSpecies();
+                    } else {
+                      handleConfirmNewSpecies();
+                    }
+                  }}
                 >
-                    {actionLoading ? "Saving..." : "Save"}
+                  {identifyLoading ? "Saving..." : "Save"}
                 </button>
               </div>
             </div>
           </div>
         )}
+
       </div>
     </>
   );
@@ -911,36 +1243,174 @@ const styles = {
     gap: 12,
     marginTop: 20,
   },
-    actionError: {
-      fontSize: 12,
-      color: '#B91C1C',
-      marginTop: 4,
-    },
+  actionError: {
+    fontSize: 12,
+    color: '#B91C1C',
+    marginTop: 4,
+  },
   // Button colors to match mobile app
   approveButton: {
     flex: 1,
-    backgroundColor: '#166534', // Green from mobile
+    backgroundColor: "#166534",
     borderRadius: 12,
-    padding: '14px',
-    border: 'none',
+    padding: "14px",
+    border: "none",
     fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    textTransform: 'uppercase',
-    letterSpacing: '0.8px',
-    cursor: 'pointer',
+    fontWeight: "700",
+    color: "#FFFFFF",
+    textTransform: "uppercase",
+    letterSpacing: "0.8px",
+    cursor: "pointer",
+  },
+  rejectButton: {
+    flex: 1,
+    backgroundColor: "#ae280bff",
+    borderRadius: 12,
+    padding: "14px",
+    border: "none",
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    textTransform: "uppercase",
+    letterSpacing: "0.8px",
+    cursor: "pointer",
   },
   identifyButton: {
     flex: 1,
-    backgroundColor: '#1D4ED8', // Blue from mobile
+    backgroundColor: "#1D4ED8",
     borderRadius: 12,
-    padding: '14px',
-    border: 'none',
+    padding: "14px",
+    border: "none",
     fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    textTransform: 'uppercase',
-    letterSpacing: '0.8px',
-    cursor: 'pointer',
+    fontWeight: "700",
+    color: "#FFFFFF",
+    textTransform: "uppercase",
+    letterSpacing: "0.8px",
+    cursor: "pointer",
   },
+  identifyCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 24,
+    width: 420,
+    maxWidth: "90vw",
+    boxShadow: "0 20px 45px rgba(15, 23, 42, 0.25)",
+    display: "flex",
+    flexDirection: "column",
+    gap: 16,
+  },
+  fullscreenOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    width: "100vw",
+    height: "100vh",
+    backgroundColor: "rgba(15, 23, 42, 0.5)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 9999,
+  },
+  identifyTitleRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  identifyTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  identifyClose: {
+    border: "none",
+    backgroundColor: "#E5E7EB",
+    borderRadius: "999px",
+    width: 28,
+    height: 28,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#374151",
+  },
+  toggleRow: {
+    display: "flex",
+    backgroundColor: "#E5E7EB",
+    borderRadius: 999,
+    padding: 3,
+    marginBottom: 16,
+  },
+  toggleBtn: {
+    flex: 1,
+    border: "none",
+    borderRadius: 999,
+    padding: "6px 10px",
+    fontSize: 13,
+    fontWeight: "600",
+    cursor: "pointer",
+    backgroundColor: "transparent",
+    color: "#4B5563",
+  },
+  toggleBtnActive: {
+    backgroundColor: "#1D4ED8",
+    color: "#FFFFFF",
+  },
+  identifyLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#475569",
+    marginBottom: 4,
+  },
+  identifySelect: {
+    width: "100%",
+    borderRadius: 10,
+    border: "1px solid #CBD5E1",
+    padding: "8px 10px",
+    fontSize: 14,
+    marginBottom: 10,
+  },
+  identifyInput: {
+    width: "100%",
+    borderRadius: 10,
+    border: "1px solid #CBD5E1",
+    padding: "8px 10px",
+    fontSize: 14,
+    boxSizing: "border-box",
+    marginBottom: 10,
+  },
+  switchRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  identifyActions: {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: 10,
+    marginTop: 8,
+  },
+  cancelButton: {
+    padding: "10px 16px",
+    backgroundColor: "transparent",
+    border: "none",
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#475569",
+    cursor: "pointer",
+  },
+  confirmButton: {
+    padding: "10px 18px",
+    borderRadius: 10,
+    backgroundColor: "#1D4ED8",
+    border: "none",
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    cursor: "pointer",
+  },
+  
 };
