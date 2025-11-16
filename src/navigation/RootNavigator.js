@@ -30,6 +30,7 @@ import MFAScreen from '../screens/MFAScreen';
 import HeatmapScreen from '../screens/HeatmapScreen';
 import AdminNavigator from './AdminNavigator';
 import AdminAgentChatScreen from '../screens/admin/AdminAgentChatScreen';
+import AdminEditLocationScreen from '../screens/admin/AdminEditLocationScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -149,6 +150,7 @@ export default function RootNavigator() {
             <Stack.Screen name="Result" component={ResultScreen} />
             <Stack.Screen name="FlagUnsure" component={FlagUnsureScreen} />
             <Stack.Screen name="ObservationDetail" component={ObservationDetailScreen} />
+            <Stack.Screen name="AdminEditLocation" component={AdminEditLocationScreen} />
           </Stack.Group>
         ) : (
           // --- PUBLIC USER STACK GROUP ---
@@ -169,6 +171,7 @@ export default function RootNavigator() {
             <Stack.Screen name="Result" component={ResultScreen} />
             <Stack.Screen name="FlagUnsure" component={FlagUnsureScreen} />
             <Stack.Screen name="ObservationDetail" component={ObservationDetailScreen} />
+            <Stack.Screen name="AdminEditLocation" component={AdminEditLocationScreen} />
           </Stack.Group>
         )
       ) : (

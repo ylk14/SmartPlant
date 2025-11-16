@@ -215,14 +215,25 @@ export const fetchDeviceHistory = async (deviceId, rangeKey) => {
 
 export const fetchSpecies = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/species`);
+    const response = await fetch(`${API_BASE_URL}/species/all`);
+
+    // Try to parse JSON safely
     const json = await response.json();
 
-    // If backend returns { success, data }
-    return json.data;    
+    // If backend returns an array directly
+    if (Array.isArray(json)) {
+      return json;
+    }
 
+    // If backend wraps it as { success, data: [...] }
+    if (json && Array.isArray(json.data)) {
+      return json.data;
+    }
+
+    console.warn('fetchSpecies: unexpected response shape', json);
+    return [];
   } catch (error) {
-    console.error("Error fetching species:", error);
+    console.error('Error fetching species:', error);
     throw error;
   }
 };
@@ -376,4 +387,52 @@ export async function confirmNewSpecies(observationId, payload) {
     }
   );
   return handleResponse(res);
+}
+
+// ======================
+// MAP
+// ======================
+
+export async function fetchMapObservations(isPublicUser) {
+  const role = isPublicUser ? 'public' : 'admin';
+  const res = await fetch(`${API_BASE_URL}/map/observations?role=${role}`);
+  const json = await res.json();
+  if (!res.ok) {
+    throw new Error(json.error || 'Failed to fetch map observations');
+  }
+  return json.data;
+}
+
+export async function updateObservationMask(observationId, isMasked) {
+  const res = await fetch(
+    `${API_BASE_URL}/admin/map/observations/${observationId}/mask`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_masked: isMasked }),
+    }
+  );
+
+  const json = await res.json();
+  if (!res.ok || !json.success) {
+    throw new Error(json.error || 'Failed to update mask');
+  }
+  return json;
+}
+
+export async function updateObservationLocation(observationId, payload) {
+  const res = await fetch(
+    `${API_BASE_URL}/admin/map/observations/${observationId}/location`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }
+  );
+
+  const json = await res.json();
+  if (!res.ok || !json.success) {
+    throw new Error(json.error || 'Failed to update location');
+  }
+  return json;
 }

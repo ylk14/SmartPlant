@@ -1,90 +1,193 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Platform,
+  Alert,
+  ScrollView,
+  Modal,
+} from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, Heatmap } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { ADMIN_ENDANGERED } from '../../navigation/routes';
-import { fetchObservationsBySpecies } from "../../../services/api";
+import { updateObservationMask, fetchMapObservations } from '../../../services/api';
+
 
 export default function AdminHeatmapScreen() {
   const [observations, setObservations] = useState([]);
+  const [selectedSpecies, setSelectedSpecies] = useState('All');
+  const [loading, setLoading] = useState(false);
+  const [detailsVisible, setDetailsVisible] = useState(false);
+  const [endangeredFilter, setEndangeredFilter] = useState('all');
+
   const [viewMode, setViewMode] = useState('heatmap');
   const [selectedObservation, setSelectedObservation] = useState(null);
   const navigation = useNavigation();
   const route = useRoute();
   const mapRef = useRef(null);
+  const isEndangered = !!selectedObservation?.species?.is_endangered;
+  const isMasked = !!selectedObservation?.is_masked;
 
-  const filteredObservations = useMemo(
-    () =>
-      selectedObservation
-        ? observations.filter(
-            (obs) => obs.species.species_id === selectedObservation.species.species_id
-          )
-        : [],
-    [observations, selectedObservation]
-  );
+  let visibilityLabel = '';
+  if (selectedObservation) {
+    if (!isEndangered) {
+      visibilityLabel = 'Visible to users (not an endangered species)';
+    } else if (isMasked) {
+      visibilityLabel = 'Location masked for users';
+    } else {
+      visibilityLabel = 'Visible to users (exact location shown)';
+    }
+  }
+
+  const availableSpecies = useMemo(() => {
+    const names = Array.from(
+      new Set(
+        observations
+          .map(o => o.species?.common_name)
+          .filter(Boolean)
+      )
+    );
+    return ['All', ...names];
+  }, [observations]);
+
+  const filteredObservations = useMemo(() => {
+    let list = observations;
+
+    if (endangeredFilter === 'endangered') {
+      list = list.filter(obs => obs.species?.is_endangered);
+    } else if (endangeredFilter === 'non') {
+      list = list.filter(obs => !obs.species?.is_endangered);
+    }
+
+    if (selectedSpecies !== 'All') {
+      list = list.filter(
+        obs => obs.species?.common_name === selectedSpecies
+      );
+    }
+
+    return list;
+  }, [observations, selectedSpecies, endangeredFilter]);
 
   const points = useMemo(
     () =>
       filteredObservations.map((obs) => ({
         latitude: obs.location_latitude,
         longitude: obs.location_longitude,
-        weight: obs.species.is_endangered ? 2 : 1,
+        weight: obs.species?.is_endangered ? 2 : 1,
       })),
     [filteredObservations]
   );
 
-  const toggleMask = (observation_id, nextValue) => {
-    setObservations((prev) =>
-      prev.map((item) =>
-        item.observation_id === observation_id
-          ? { ...item, is_masked: nextValue }
-          : item
+  useEffect(() => {
+    if (!filteredObservations.length) {
+      setSelectedObservation(null);
+      return;
+    }
+
+    // if nothing is selected, or current selection is not in the filtered list,
+    // pick the first one
+    if (
+      !selectedObservation ||
+      !filteredObservations.some(
+        o => o.observation_id === selectedObservation.observation_id
       )
-    );
-    setSelectedObservation((prev) =>
-      prev && prev.observation_id === observation_id
-        ? { ...prev, is_masked: nextValue }
-        : prev
-    );
+    ) {
+      setSelectedObservation(filteredObservations[0]);
+    }
+  }, [filteredObservations, selectedObservation]);
+
+  const toggleMask = async (observation_id, nextValue) => {
+    try {
+      await updateObservationMask(observation_id, nextValue);
+
+      setObservations(prev =>
+        prev.map(o =>
+          o.observation_id === observation_id
+            ? { ...o, is_masked: nextValue }
+            : o
+        )
+      );
+
+      setSelectedObservation(prev =>
+        prev && prev.observation_id === observation_id
+          ? { ...prev, is_masked: nextValue }
+          : prev
+      );
+    } catch (err) {
+      console.log('Mask toggle failed:', err);
+      Alert.alert('Error', 'Failed to update mask setting');
+    }
   };
 
   const HEATMAP_RADIUS = Platform.OS === 'android' ? 40 : 60;
   const hasSelection = Boolean(selectedObservation);
   const visibleForUser = hasSelection
-    ? filteredObservations.some((obs) => !obs.is_masked)
+    ? (!isEndangered || !isMasked)
     : true;
 
   const incomingObservation = route?.params?.selectedObservation;
 
-  useEffect(() => {
-    if (!incomingObservation) return;
+  const loadObservations = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      const all = await fetchMapObservations(false);
 
-    setSelectedObservation(incomingObservation);
+      const normalised = all.map(obs => ({
+        ...obs,
+        location_latitude:
+          obs.location_latitude != null
+            ? Number.parseFloat(obs.location_latitude)
+            : null,
+        location_longitude:
+          obs.location_longitude != null
+            ? Number.parseFloat(obs.location_longitude)
+            : null,
+        confidence_score:
+          obs.confidence_score != null
+            ? Number(obs.confidence_score)
+            : 0.8,
+      }));
 
-    // Fetch real observation data from backend
-    fetchObservationsBySpecies(incomingObservation.species.species_id)
-      .then(json => {
-        if (!json.success) return;
+      setObservations(normalised);
 
-        const converted = json.data.map(row => ({
-          observation_id: row.observation_id,
-          user_id: row.user_id,
-          species: incomingObservation.species,
-          location_latitude: parseFloat(row.location_latitude),
-          location_longitude: parseFloat(row.location_longitude),
-          location_name: row.location_name || `Lat: ${row.location_latitude}, Lon: ${row.location_longitude}`,
-          confidence_score: row.confidence_score ?? 0.75,
-          is_masked: false,
-        }));
+      // preselect species if coming from endangered list
+      if (incomingObservation?.species?.common_name) {
+        setSelectedSpecies(incomingObservation.species.common_name);
+      } else {
+        setSelectedSpecies('All');
+      }
 
-        setObservations(converted);
-        setViewMode("heatmap");
-      })
-      .catch(err => console.log("Observation fetch error:", err));
+      if (normalised.length > 0) {
+        const initial =
+          incomingObservation &&
+          normalised.find(
+            o => o.observation_id === incomingObservation.observation_id
+          );
+        setSelectedObservation(initial || normalised[0]);
+      }
+
+      setViewMode('heatmap');
+    } catch (err) {
+      console.log('Observation fetch error (admin heatmap):', err);
+    } finally {
+      setLoading(false);
+    }
   }, [incomingObservation]);
 
+  useEffect(() => {
+    loadObservations();
+
+    const id = setInterval(() => {
+      loadObservations();
+    }, 30000);
+
+    return () => clearInterval(id);
+  }, [loadObservations]);
+  
 
   useEffect(() => {
     if (!selectedObservation || !mapRef.current) {
@@ -115,6 +218,58 @@ export default function AdminHeatmapScreen() {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Species Heatmap</Text>
           <Text style={styles.headerSubtitle}>Select a plant to view heatmap distribution.</Text>
+          <View style={styles.filterRow}>
+            <Text style={styles.filterLabel}>Species</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {availableSpecies.map(name => (
+                <TouchableOpacity
+                  key={name}
+                  style={[
+                    styles.filterChip,
+                    selectedSpecies === name && styles.filterChipActive,
+                  ]}
+                  onPress={() => setSelectedSpecies(name)}
+                >
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      selectedSpecies === name && styles.filterChipTextActive,
+                    ]}
+                  >
+                    {name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+          <View style={styles.filterRow}>
+            <Text style={styles.filterLabel}>Endangered</Text>
+            <View style={styles.filterChipRow}>
+              {[
+                { key: 'all', label: 'All' },
+                { key: 'endangered', label: 'Endangered only' },
+                { key: 'non', label: 'Non endangered' },
+              ].map(opt => (
+                <TouchableOpacity
+                  key={opt.key}
+                  style={[
+                    styles.filterChip,
+                    endangeredFilter === opt.key && styles.filterChipActive,
+                  ]}
+                  onPress={() => setEndangeredFilter(opt.key)}
+                >
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      endangeredFilter === opt.key && styles.filterChipTextActive,
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
         </View>
 
         <View style={styles.modeRow}>
@@ -221,98 +376,207 @@ export default function AdminHeatmapScreen() {
               </Text>
             </View>
           )}
-        </View>
-
-        <View style={styles.panel}>
-          <View style={styles.panelHeader}>
-            <Text style={styles.panelTitle}>Endangered Species Controls</Text>
-          </View>
-          <TouchableOpacity style={styles.chooseButton} onPress={handleChoosePlant}>
-            <Ionicons name="leaf-outline" size={16} color="#0F4C81" />
-            <Text style={styles.chooseButtonText}>Endangered Plant</Text>
-          </TouchableOpacity>
-
-          {selectedObservation ? (
-            <View style={styles.selectedCard}>
-              <View style={styles.selectedCardHeader}>
-                <View>
-                  <Text style={styles.selectedSpecies}>{selectedObservation.species.common_name}</Text>
-                  <Text style={styles.selectedScientific}>{selectedObservation.species.scientific_name}</Text>
-                </View>
-                <View style={styles.statusPill}>
-                  <Text style={styles.statusPillText}>
-                    {selectedObservation.species.is_endangered ? 'Endangered' : 'Not endangered'}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.cardRow}>
-                <Ionicons name="albums-outline" size={16} color="#5B6C7C" />
-                <Text style={styles.cardRowText}>Observation {selectedObservation.observation_id}</Text>
-              </View>
-              <View style={styles.cardRow}>
-                <Ionicons name="pin-outline" size={16} color="#5B6C7C" />
-                <Text style={styles.cardRowText}>{selectedObservation.location_name}</Text>
-              </View>
-              <View style={styles.cardRow}>
-                <Ionicons name="speedometer-outline" size={16} color="#5B6C7C" />
-                <Text style={styles.cardRowText}>
-                  Confidence {(selectedObservation.confidence_score * 100).toFixed(0)}%
-                </Text>
-              </View>
-              <View style={styles.visibilityRow}>
-                <Ionicons
-                  name={visibleForUser ? 'eye-outline' : 'eye-off-outline'}
-                  size={16}
-                  color={visibleForUser ? '#166534' : '#B91C1C'}
-                />
-                <Text style={styles.visibilityLabel}>
-                  {visibleForUser ? 'Visible to users' : 'Masked from users'}
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                style={[styles.maskButton, selectedObservation.is_masked ? styles.masked : styles.unmasked]}
-                  onPress={() => {
-                    const nextValue = !selectedObservation.is_masked;
-                    Alert.alert(
-                      nextValue ? 'Mask Location' : 'Unmask Location',
-                      nextValue
-                        ? 'Hide this plant location from end users?'
-                        : 'Reveal this plant location to end users?',
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        {
-                          text: nextValue ? 'Mask' : 'Unmask',
-                          style: nextValue ? 'destructive' : 'default',
-                          onPress: () => toggleMask(selectedObservation.observation_id, nextValue),
-                        },
-                      ],
-                      { cancelable: true }
-                    );
-                  }}
-              >
-                <Ionicons
-                  name={selectedObservation.is_masked ? 'eye-off-outline' : 'eye-outline'}
-                  size={18}
-                  color={selectedObservation.is_masked ? '#933d27' : '#0F4C81'}
-                />
-                <Text
-                  style={[
-                    styles.maskButtonText,
-                    selectedObservation.is_masked ? styles.maskedText : styles.unmaskedText,
-                  ]}
-                >
-                  {selectedObservation.is_masked ? 'Unmask for users' : 'Mask for users'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <Text style={styles.emptyStateText}>
-              No plant selected yet. Choose a plant to review distribution controls.
-            </Text>
+          {hasSelection && (
+            <TouchableOpacity
+              style={styles.detailsHandle}
+              onPress={() => setDetailsVisible(true)}
+            >
+              <Text style={styles.detailsHandleText}>
+                {selectedObservation?.species?.common_name || 'Selected plant'} •{' '}
+                {filteredObservations.length === 1
+                  ? '1 observation'
+                  : `${filteredObservations.length} observations`}
+              </Text>
+              <Ionicons name="chevron-up" size={16} color="#0F4C81" />
+            </TouchableOpacity>
           )}
         </View>
+
+        <Modal
+          visible={detailsVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setDetailsVisible(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.detailsCard}>
+              {/* your existing Endangered Species Controls content goes here */}
+              {/* keep the same look you already have */}
+              <View style={styles.detailsHeaderRow}>
+                <Text style={styles.panelTitle}>Endangered Species Controls</Text>
+                <TouchableOpacity onPress={() => setDetailsVisible(false)}>
+                  <Ionicons name="close" size={18} color="#5B6C7C" />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity
+                style={styles.chooseButton}
+                onPress={handleChoosePlant}
+              >
+                <Ionicons name="leaf-outline" size={16} color="#0F4C81" />
+                <Text style={styles.chooseButtonText}>View endangered list</Text>
+              </TouchableOpacity>
+              {filteredObservations.length > 0 ? (
+                <ScrollView
+                  style={styles.observationList}
+                  contentContainerStyle={styles.observationListContent}
+                >
+                  {filteredObservations.map(obs => {
+                    const isEndangeredObs = !!obs.species?.is_endangered;
+                    const isMaskedObs = !!obs.is_masked;
+                    const visibleForUsersObs = !isMaskedObs;
+
+                    return (
+                      <View
+                        key={obs.observation_id}
+                        style={[
+                          styles.selectedCard,
+                          isEndangeredObs ? styles.cardEndangered : styles.cardNonEndangered,
+                        ]}
+                      >
+                        {/* header: name + status pill */}
+                        <View style={styles.selectedCardHeader}>
+                          <View>
+                            <Text style={styles.selectedSpecies}>
+                              {obs.species.common_name}
+                            </Text>
+                            <Text style={styles.selectedScientific}>
+                              {obs.species.scientific_name}
+                            </Text>
+                          </View>
+                          <View
+                            style={[
+                              styles.statusPill,
+                              !isEndangeredObs && styles.statusPillNonEndangered,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.statusPillText,
+                                !isEndangeredObs && styles.statusPillTextNonEndangered,
+                              ]}
+                            >
+                              {isEndangeredObs ? 'ENDANGERED' : 'NOT ENDANGERED'}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* observation id */}
+                        <View style={styles.cardRow}>
+                          <Ionicons name="albums-outline" size={16} color="#5B6C7C" />
+                          <Text style={styles.cardRowText}>
+                            Observation {obs.observation_id}
+                          </Text>
+                        </View>
+
+                        {/* location */}
+                        <View style={styles.cardRow}>
+                          <Ionicons name="pin-outline" size={16} color="#5B6C7C" />
+                          <View>
+                            <Text style={styles.detailLabel}>Location</Text>
+                            <Text style={styles.detailValue}>
+                              {obs.location_latitude != null && obs.location_longitude != null
+                                ? `Lat ${obs.location_latitude.toFixed(4)}, Lon ${obs.location_longitude.toFixed(4)}`
+                                : 'Coordinates not available'}
+                            </Text>
+                            {obs.location_name ? (
+                              <Text style={styles.detailValue}>
+                                {obs.location_name}
+                              </Text>
+                            ) : null}
+                          </View>
+                        </View>
+
+                        {/* confidence */}
+                        <View style={styles.cardRow}>
+                          <Ionicons name="speedometer-outline" size={16} color="#5B6C7C" />
+                          <Text style={styles.detailLabel}>Confidence</Text>
+                          <Text style={styles.detailValue}>
+                            {obs.confidence_score != null
+                              ? `${Math.round(obs.confidence_score * 100)}%`
+                              : 'Not available'}
+                          </Text>
+                        </View>
+
+                        {/* visibility status */}
+                        <View style={styles.visibilityRow}>
+                          <Ionicons
+                            name={visibleForUsersObs ? 'eye-outline' : 'eye-off-outline'}
+                            size={16}
+                            color={visibleForUsersObs ? '#166534' : '#B91C1C'}
+                          />
+                          <Text style={styles.visibilityLabel}>
+                            {visibleForUsersObs ? 'Visible to users' : 'Masked from users'}
+                          </Text>
+                        </View>
+
+                        {/* actions */}
+                        <View style={styles.cardActionsRow}>
+                          <TouchableOpacity
+                            style={[
+                              styles.maskButton,
+                              isMaskedObs ? styles.masked : styles.unmasked,
+                            ]}
+                            onPress={() => {
+                              const nextValue = !isMaskedObs;
+                              Alert.alert(
+                                nextValue ? 'Mask location' : 'Unmask location',
+                                nextValue
+                                  ? 'Hide this plant location from end users?'
+                                  : 'Reveal this plant location to end users?',
+                                [
+                                  { text: 'Cancel', style: 'cancel' },
+                                  {
+                                    text: nextValue ? 'Mask' : 'Unmask',
+                                    style: nextValue ? 'destructive' : 'default',
+                                    onPress: () =>
+                                      toggleMask(obs.observation_id, nextValue),
+                                  },
+                                ],
+                                { cancelable: true }
+                              );
+                            }}
+                          >
+                            <Ionicons
+                              name={isMaskedObs ? 'eye-off-outline' : 'eye-outline'}
+                              size={18}
+                              color={isMaskedObs ? '#933d27' : '#0F4C81'}
+                            />
+                            <Text
+                              style={[
+                                styles.maskButtonText,
+                                isMaskedObs ? styles.maskedText : styles.unmaskedText,
+                              ]}
+                            >
+                              {isMaskedObs ? 'Unmask for users' : 'Mask for users'}
+                            </Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.editLocationButton}
+                            onPress={() => {
+                              // keep selectedObservation in sync so the top badge uses this one
+                              setSelectedObservation(obs);
+                              navigation.navigate('AdminEditLocation', {
+                                observation: obs,
+                              });
+                            }}
+                          >
+                            <Ionicons name="create-outline" size={16} color="#0F4C81" />
+                            <Text style={styles.editLocationText}>Edit location</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              ) : (
+                <Text style={styles.emptyStateText}>
+                  No observations match the current filters.
+                </Text>
+              )}
+            </View>
+          </View>
+        </Modal>
     </SafeAreaView>
   );
 }
@@ -321,7 +585,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F7F9FC' },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 0,
     paddingBottom: 16,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
@@ -414,14 +678,18 @@ const styles = StyleSheet.create({
   },
   selectedCard: {
     marginTop: 16,
-    borderRadius: 18,
-    backgroundColor: '#F8FBFF',
     padding: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    borderRadius: 18,
+    borderWidth: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  cardEndangered: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FCA5A5',
+  },
+  cardNonEndangered: {
+    backgroundColor: '#ECFDF3',
+    borderColor: '#4ADE80',
   },
   selectedCardHeader: {
     flexDirection: 'row',
@@ -433,13 +701,22 @@ const styles = StyleSheet.create({
   selectedSpecies: { fontSize: 16, fontWeight: '700', color: '#0F1C2E' },
   selectedScientific: { fontSize: 13, color: '#4B5563', marginTop: 2 },
   statusPill: {
-    alignSelf: 'flex-start',
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: 999,
     backgroundColor: '#FEE2E2',
   },
-  statusPillText: { fontSize: 11, fontWeight: '700', color: '#B91C1C', textTransform: 'uppercase' },
+  statusPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B91C1C',
+  },
+  statusPillNonEndangered: {
+    backgroundColor: '#DCFCE7',
+  },
+  statusPillTextNonEndangered: {
+    color: '#166534',
+  },
   cardRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -455,14 +732,20 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   visibilityLabel: { fontSize: 12, fontWeight: '600', color: '#1F2937' },
+  detailsActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 16,
+  },
   maskButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     gap: 6,
-    marginTop: 14,
   },
   masked: { backgroundColor: '#FBE4DD' },
   unmasked: { backgroundColor: '#E3ECF9' },
@@ -473,5 +756,127 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 13,
     color: '#5B6C7C',
+  },
+  editLocationButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginLeft: 8,
+    gap: 6,
+    backgroundColor: '#E5F0FB',
+  },
+  editLocationText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0F4C81',
+  },
+  detailsHandle: {
+    position: 'absolute',
+    bottom: 16,
+    left: 16,
+    right: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  detailsHandleText: {
+    fontSize: 13,
+    color: '#0F4C81',
+    fontWeight: '600',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'flex-end',
+  },
+  detailsCard: {
+    backgroundColor: '#F7FAFF',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 24,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '75%',
+  },
+  detailsHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  filterRow: {
+    paddingHorizontal: 0,
+    paddingTop: 8,
+    paddingBottom: 4,
+    marginLeft: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 5,
+  },
+  filterLabel: {
+    fontSize: 13,
+    marginLeft: 0,
+    fontWeight: '600',
+    color: '#1F2A37',
+  },
+  filterChipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#D0D7E2',
+    backgroundColor: '#FFFFFF',
+    marginRight: 5,
+  },
+  filterChipActive: {
+    backgroundColor: '#D7E6F7',
+    borderColor: '#0F4C81',
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#4B5563',
+  },
+  filterChipTextActive: {
+    color: '#0F4C81',
+    fontWeight: '600',
+  },
+  observationList: {
+    marginTop: 12,
+  },
+  observationListContent: {
+    paddingBottom: 16,
+  },
+  cardActionsRow: {
+    marginTop: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  detailLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4B5563',
+  },
+  detailValue: {
+    fontSize: 13,
+    color: '#111827',
   },
 });

@@ -18,6 +18,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { fetchMapObservations } from '../../services/api';
 
 // ===================== MOCK DATA =====================
 const mockObservations = [
@@ -150,18 +151,12 @@ export default function HeatmapScreen() {
     const fetchObservations = async () => {
       try {
         setLoading(true);
-        
-        // ======= BACKEND INTEGRATION POINT =======
-        // Replace this mock API call with actual backend API
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // For now, using mock data
-        setObservations(mockObservations);
-        
+        const data = await fetchMapObservations(isPublicUser);
+        setObservations(data);
       } catch (error) {
-        console.error("Failed to fetch observations:", error);
-        Alert.alert("Error", "Failed to load observations data");
-        setObservations(mockObservations);
+        console.error('Failed to fetch observations:', error);
+        Alert.alert('Error', 'Failed to load observations data');
+        // setObservations(mockObservations); //flallback for demo
       } finally {
         setLoading(false);
       }
@@ -172,16 +167,13 @@ export default function HeatmapScreen() {
 
   // ======= FILTERING LOGIC =======
   const filteredObservations = observations.filter((obs) => {
-    // For public users, only show non-endangered species
-    if (isPublicUser && obs.species.is_endangered) {
-      return false;
-    }
-    
     const speciesMatch =
-      selectedSpecies === "All" ||
+      selectedSpecies === 'All' ||
       obs.species.common_name === selectedSpecies;
+
     const dateMatch =
       new Date(obs.created_at).getTime() >= selectedDate.getTime();
+
     return speciesMatch && dateMatch;
   });
 

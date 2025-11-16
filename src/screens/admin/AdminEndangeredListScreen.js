@@ -1,140 +1,194 @@
-import React, { useMemo, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { CommonActions, useNavigation } from '@react-navigation/native';
-import { ADMIN_HEATMAP, ADMIN_ROOT } from '../../navigation/routes';
-import { fetchSpecies } from "../../../services/api";
+import { useNavigation } from '@react-navigation/native';
 
+// keep your weird relative paths so Metro does not cry
+import { ADMIN_HEATMAP, ADMIN_ROOT } from '../../navigation/routes';
+import { fetchSpeciesList } from '../../../services/api';
 
 export default function AdminEndangeredListScreen() {
-  const [speciesList, setSpeciesList] = useState([]);
-  const [selectedSpeciesId, setSelectedSpeciesId] = useState(null);
   const navigation = useNavigation();
-  React.useEffect(() => {
-  loadSpecies();
-}, []);
+  const [speciesList, setSpeciesList] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  const loadSpecies = async () => {
+  const loadSpecies = useCallback(async () => {
     try {
-      const data = await fetchSpecies();
-      console.log("Fetched endangered species:", data);
+      setLoading(true);
 
-      const speciesArray = Array.isArray(data) ? data : data.data;
+      const raw = await fetchSpeciesList();
+      console.log('[EndangeredList] raw species:', raw);
 
-      if (!speciesArray) {
-        console.error("Species list missing:", data);
-        return;
-      }
+      const speciesArray = Array.isArray(raw)
+        ? raw
+        : raw && Array.isArray(raw.data)
+        ? raw.data
+        : [];
 
-      // Show only endangered species
-      const endangeredOnly = speciesArray.filter(s => s.is_endangered === 1);
+      console.log('[EndangeredList] normalised:', speciesArray);
 
-      // Convert to frontend format
-      const converted = endangeredOnly.map(s => ({
-      observation_id: "DB-" + s.species_id,
-      species: {
-        species_id: s.species_id,
-        common_name: s.common_name,
-        scientific_name: s.scientific_name,
-        is_endangered: true,
+      // only keep endangered ones (handles 1, '1', true, 'true')
+      const endangeredOnly = speciesArray.filter((s) => {
+        const v = s.is_endangered;
+        return (
+          Number(v) === 1 ||
+          v === true ||
+          v === 'true'
+        );
+      });
 
-      },
-      location_name: "Unknown",
-
-      // ADD THESE TWO FIELDS 
-      location_latitude: 1.55,      // fake coordinate for testing
-      location_longitude: 110.35,
-
-      is_masked: false,
-  }));
+      // map into the “observation-like” shape the UI expects
+      const converted = endangeredOnly.map((s) => ({
+        observation_id: `species-${s.species_id}`,
+        species: {
+          species_id: s.species_id,
+          common_name: s.common_name ?? s.display_name,
+          scientific_name: s.scientific_name ?? s.display_name,
+          is_endangered: true,
+        },
+        location_name: 'Unknown', // still no single name, locations vary
+        location_latitude: s.sample_latitude ?? null,
+        location_longitude: s.sample_longitude ?? null,
+        is_masked: false,
+      }));
 
       setSpeciesList(converted);
-
     } catch (err) {
-      console.error("Error loading species list:", err);
+      console.error('[EndangeredList] error loading species:', err);
+      setSpeciesList([]);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, []);
 
-
-
-  const toggleMask = (observation_id) => {
-    setSpeciesList((prev) =>
-      prev.map((item) =>
-        item.observation_id === observation_id
-          ? { ...item, is_masked: !item.is_masked }
-          : item
-      )
-    );
-  };
+  useEffect(() => {
+    loadSpecies();
+  }, [loadSpecies]);
 
   const sortedList = useMemo(
     () =>
-      [...speciesList].sort((a, b) => {
-        const nameA = a.species.common_name.toLowerCase();
-        const nameB = b.species.common_name.toLowerCase();
-        return nameA.localeCompare(nameB);
-      }),
-    [speciesList]
+      [...speciesList].sort((a, b) =>
+        a.species.common_name
+          .toLowerCase()
+          .localeCompare(b.species.common_name.toLowerCase()),
+      ),
+    [speciesList],
   );
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.center}>
+        <ActivityIndicator size="large" />
+        <Text style={styles.loadingText}>Loading endangered species…</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (!sortedList.length) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.headerRow}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="chevron-back" size={22} color="#111827" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Endangered species</Text>
+        </View>
+
+        <View style={styles.center}>
+          <Text style={styles.emptyTitle}>No endangered species</Text>
+          <Text style={styles.emptySubtitle}>
+            Once you mark species as endangered in the admin panel,
+            they will appear here.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={styles.headerRow}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="chevron-back" size={22} color="#111827" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Endangered species</Text>
+      </View>
       <FlatList
         data={sortedList}
         keyExtractor={(item) => item.observation_id}
         contentContainerStyle={styles.listContent}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
-        renderItem={({ item }) => {
-          const isSelected = selectedSpeciesId === item.species.species_id;
-          return (
-            <View style={[styles.listItem, isSelected && styles.listItemSelected]}>
-              <View style={styles.listItemInfo}>
-                <Text style={styles.speciesName}>{item.species.common_name}</Text>
-                <Text style={styles.metaText}>Status: {item.is_endangered ? 'Endangered' : 'Not endangered'}</Text>
-                <Text style={styles.metaText}>Region: {item.location_name}</Text>
-              </View>
-              <TouchableOpacity
-                style={[styles.selectButton, isSelected && styles.selectButtonActive]}
-                onPress={() => {
-                  if (isSelected) {
-                    setSelectedSpeciesId(null);
-                    return;
-                  }
-
-                  setSelectedSpeciesId(item.species.species_id);
-                  navigation.dispatch(
-                    CommonActions.navigate({
-                      name: ADMIN_ROOT,
-                    params: {
-                      screen: ADMIN_HEATMAP,
-                      params: {
-                        selectedObservation: item,
-                      },
-                    },
-                      })
-                    );
-                  }}
-              >
-                <Text style={[styles.selectButtonText, isSelected && styles.selectButtonTextActive]}>Select</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.maskButton, item.is_masked ? styles.masked : styles.unmasked]}
-                onPress={() => toggleMask(item.observation_id)}
-                accessibilityRole="button"
-              >
-                <Ionicons
-                  name={item.is_masked ? 'eye-off-outline' : 'eye-outline'}
-                  size={18}
-                  color={item.is_masked ? '#933d27' : '#0F4C81'}
-                />
-                <Text style={[styles.maskButtonText, item.is_masked ? styles.maskedText : styles.unmaskedText]}>
-                  {item.is_masked ? 'Masked' : 'Visible'}
+        renderItem={({ item }) => (
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View>
+                <Text style={styles.speciesName}>
+                  {item.species.common_name}
                 </Text>
-              </TouchableOpacity>
+                <Text style={styles.scientificName}>
+                  {item.species.scientific_name}
+                </Text>
+              </View>
+              <View style={styles.badgeDanger}>
+                <Text style={styles.badgeDangerText}>ENDANGERED</Text>
+              </View>
             </View>
-          );
-        }}
+
+            <View style={styles.metaRow}>
+              <Ionicons
+                name="location-outline"
+                size={16}
+                color="#555"
+                style={styles.metaIcon}
+              />
+              <Text style={styles.metaText}>
+                {item.location_latitude != null && item.location_longitude != null
+                  ? `Lat ${item.location_latitude.toFixed(4)}, Lon ${item.location_longitude.toFixed(4)}`
+                  : 'Unknown'}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.mapButton}
+              onPress={() => {
+                // optional: jump back to heatmap focused on this species
+                navigation.navigate(ADMIN_ROOT, {
+                  screen: ADMIN_HEATMAP,
+                  params: {
+                    selectedSpeciesId: item.species.species_id,
+                  },
+                });
+              }}
+            >
+              <Ionicons
+                name="map-outline"
+                size={18}
+                color="#0b5"
+                style={styles.metaIcon}
+              />
+              <Text style={styles.mapButtonText}>View on heatmap</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       />
     </SafeAreaView>
   );
@@ -143,75 +197,116 @@ export default function AdminEndangeredListScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F9FC',
+    backgroundColor: '#FFF5F7',
+  },
+  center: {
+    flex: 1,
+    backgroundColor: '#FFF5F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 15,
+    color: '#555',
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#222',
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#777',
+    textAlign: 'center',
   },
   listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-    paddingTop: 12,
-  },
-  listItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: '#FFFFFF',
+    paddingVertical: 12,
+  },
+  separator: {
+    height: 12,
+  },
+  card: {
     borderRadius: 18,
+    padding: 16,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#FFCDD2',
     shadowColor: '#000',
     shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
     elevation: 2,
-    gap: 12,
   },
-  listItemSelected: {
-    backgroundColor: '#EFF5FF',
-  },
-  listItemInfo: {
-    flex: 1,
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   speciesName: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#0F1C2E',
+    fontWeight: '600',
+    color: '#222',
   },
-  metaText: {
-    fontSize: 12,
-    color: '#5A6A78',
+  scientificName: {
+    fontSize: 13,
+    color: '#777',
     marginTop: 2,
   },
-  selectButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: '#E3ECF9',
+  badgeDanger: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: '#FFEBEE',
   },
-  selectButtonActive: {
-    backgroundColor: '#1A54A5',
-  },
-  selectButtonText: {
-    fontSize: 12,
+  badgeDangerText: {
+    fontSize: 11,
     fontWeight: '600',
-    color: '#0F4C81',
+    color: '#C62828',
   },
-  selectButtonTextActive: {
-    color: '#FFFFFF',
-  },
-  maskButton: {
+  metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    gap: 6,
+    marginBottom: 8,
   },
-  masked: { backgroundColor: '#FBE4DD' },
-  unmasked: { backgroundColor: '#E3ECF9' },
-  maskButtonText: { fontSize: 12, fontWeight: '600' },
-  maskedText: { color: '#933d27' },
-  unmaskedText: { color: '#0F4C81' },
-  separator: {
-    height: 12,
+  metaIcon: {
+    marginRight: 6,
+  },
+  metaText: {
+    fontSize: 14,
+    color: '#555',
+  },
+  mapButton: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  mapButtonText: {
+    fontSize: 14,
+    color: '#0b5',
+    fontWeight: '500',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
   },
 });
