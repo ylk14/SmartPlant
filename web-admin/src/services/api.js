@@ -45,40 +45,22 @@ export const loginUser = async (email, password) => {
   });
 };
 
-// Chat function for web
+// Chat function for web (Now connected to the real backend)
 export const postChatMessage = async (query) => {
-  // TODO: Replace this mock with real backend connection
-  // Mock response for testing until backend is ready
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        reply: `I received your message: "${query}". This is a mock response until the AI backend is connected.`
-      });
-    }, 1000);
-  });
-
-  // Real implementation (commented out until backend is ready):
-  /*
   try {
-    const response = await fetch(`${API_BASE_URL}/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ query }),
-    });
-
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error || 'Failed to get chat response');
-    }
-    
-    return response.json();
+    // Calls POST /api/chat (from your dataRoutes.js)
+    // We override the default timeout to 90 seconds, as the AI can be slow.
+    const { data } = await api.post(
+      '/api/chat', 
+      { query },
+      { timeout: 90000 } // 90-second timeout
+    );
+    return data; // Returns { reply: "..." }
   } catch (error) {
     console.error("Error in postChatMessage:", error);
-    throw error;
+    // This will throw the error so the chat component can catch it
+    throw error; 
   }
-  */
 };
 
 export const fetchSensorData = async () => {
@@ -127,3 +109,43 @@ export const fetchSystemStatus = async () => {
   }
 };
 
+// --- ⬇️ FUNCTIONS NEEDED FOR IOT.JSX ⬇️ ---
+
+/**
+ * Fetches the full list of all devices for the admin dashboard.
+ * API Endpoint: GET /api/devices/all
+ */
+export const fetchDevices = async () => {
+  const { data } = await api.get("/api/devices/all");
+  return data;
+};
+
+/**
+ * Resolves all active alerts for a specific device.
+ * API Endpoint: POST /api/alerts/resolve/device/:id
+ */
+export const resolveDeviceAlerts = async (deviceId) => {
+  const { data } = await api.post(
+    `/api/alerts/resolve/device/${deviceId}`
+  );
+  return data;
+};
+
+/**
+ * Fetches the list of all species for the dropdown.
+ * API Endpoint: GET /api/species/all
+ */
+export const fetchSpeciesList = async () => {
+  const { data } = await api.get("/api/species/all"); 
+  return data;
+};
+
+/**
+ * Adds a new device to the database.
+ * API Endpoint: POST /api/devices/add
+ */
+export const addNewDevice = async (deviceData) => {
+  // { device_name, species_id, latitude, longitude }
+  const { data } = await api.post("/api/devices/add", deviceData);
+  return data;
+};
