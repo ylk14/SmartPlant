@@ -6,7 +6,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
 //  *** STEP 1: Import useAuth *** 
 import { useAuth } from '../context/AuthContext';
-import { fetchUserPosts } from '../../services/api';
+import { fetchUserPosts, API_BASE_URL } from '../../services/api';
 
 //  *** STEP 2: REMOVE THE BYPASS *** 
 // const TEMP_USER_ID = '1'; // No longer needed!
@@ -84,9 +84,16 @@ export default function ProfileScreen() {
 
   //  *** STEP 6: Update the 'openObservation' function *** 
   // (This is the fix we made earlier, just keeping it)
-  const openObservation = (item) =>
+  const openObservation = (item) => {
+    const baseUrl = API_BASE_URL.replace(/\/api$/, '');
+    const photoUri = item.photo_url
+      ? (item.photo_url.startsWith('http')
+          ? item.photo_url
+          : `${baseUrl}${item.photo_url}`)
+      : null;
+
     nav.navigate('ObservationDetail', {
-      photoUri: item.photo_url,
+      photoUri,
       createdAt: item.created_at,
       speciesName: item.species_name,
       commonName: item.common_name,
@@ -98,10 +105,18 @@ export default function ProfileScreen() {
       observation_id: item.observation_id,
       user_id: item.user_id,
     });
-
+  };
 
   const renderItem = ({ item }) => {
-    const imgSource = item.photo_url ? { uri: item.photo_url } : null;
+    const baseUrl = API_BASE_URL.replace(/\/api$/, '');
+
+    const imgSource = item.photo_url
+      ? {
+          uri: item.photo_url.startsWith('http')
+            ? item.photo_url
+            : `${baseUrl}${item.photo_url}`,
+        }
+      : null;
 
     const initials = (item.uploadedBy || user?.username || '?')
       .slice(0, 2)
@@ -159,6 +174,15 @@ export default function ProfileScreen() {
     );
   }
 
+  const avatarUriRaw = user?.avatar || user?.avatar_url || null;
+  const baseUrl = API_BASE_URL.replace(/\/api$/, '');
+
+  const avatarUri = avatarUriRaw
+    ? (avatarUriRaw.startsWith('http')
+        ? avatarUriRaw
+        : `${baseUrl}${avatarUriRaw}`)
+    : null;
+
   return (
     <SafeAreaView style={s.container} edges={['top', 'left', 'right']}>
       {/* Header */}
@@ -170,9 +194,9 @@ export default function ProfileScreen() {
           <>
             <View style={s.headerRow}>
               <View style={s.profileInfo}>
-                <Image 
-                  source={user.avatar ? { uri: user.avatar } : null} 
-                  style={s.avatar} 
+                <Image
+                  source={avatarUri ? { uri: avatarUri } : null}
+                  style={s.avatar}
                 />
                 <View>
                   <Text style={s.name}>{user.username}</Text>

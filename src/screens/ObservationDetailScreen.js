@@ -32,21 +32,22 @@ export default function ObservationDetailScreen() {
 
   // Accept a rich set of params (pass as many as you have)
   const {
-    photoUri,                 // string | require() object
-    speciesName,              // e.g., "Nepenthes rafflesiana"
-    commonName,               // e.g., "Raffles' Pitcher Plant"
-    scientificName,           // if you separate common/scientific
-    isEndangered,             // boolean
-    confidence,               // number
-    rank,                     // optional tinyint from AI_Results
-    region,                   // optional
-    locationName,             // human-readable name (Plant_Observations)
-    latitude,                 // number
-    longitude,                // number
-    notes,                    // string
-    uploadedBy,               // string
-    createdAt,                // iso datetime
-    source,                   // 'camera' | 'library' | 'unknown'
+    photoUri, // string | require() object
+    speciesName, // e.g., "Nepenthes rafflesiana"
+    commonName, // e.g., "Raffles' Pitcher Plant"
+    scientificName, // if you separate common/scientific
+    isEndangered, // boolean
+    confidence, // number
+    rank, // optional tinyint from AI_Results
+    region, // optional
+    locationName, // human-readable name (Plant_Observations)
+    latitude, // number
+    longitude, // number
+    notes, // string
+    uploadedBy, // string
+    createdAt, // iso datetime
+    source, // 'camera' | 'library' | 'unknown'
+    description, // string
   } = route.params ?? {};
 
   const showLow = typeof confidence === 'number' && confidence < LOW_CONFIDENCE_THRESHOLD;
@@ -119,6 +120,9 @@ export default function ObservationDetailScreen() {
           {!!commonName && (
             <Text style={s.subTitle}>{commonName}</Text>
           )}
+          {!!description && (
+            <Text style={s.descText}>{description}</Text>
+          )}
 
           <View style={s.chipsRow}>
             {typeof confidence === 'number' && (
@@ -141,15 +145,13 @@ export default function ObservationDetailScreen() {
           <Row label="Captured on" value={fmtDate(createdAt)} />
           {!!uploadedBy && <Row label="Uploaded by" value={uploadedBy} />}
           {!!source && <Row label="Source" value={source} />}
-          {!!region && <Row label="Region" value={region} />}
-          {!!locationName && <Row label="Location" value={locationName} />}
           {(latitude != null && longitude != null) && (
             <View style={[s.row, { alignItems: 'center' }]}>
-              <View style={s.rowLeft}>
-                <Text style={s.label}>Coordinates</Text>
-              </View>
+              <View style={s.rowLeft} />
               <View style={s.rowRight}>
-                <Text style={s.value}>{latitude.toFixed(6)}, {longitude.toFixed(6)}</Text>
+                <Text style={s.value}>
+                  {latitude.toFixed(6)}, {longitude.toFixed(6)}
+                </Text>
                 <Pressable style={s.mapsBtn} onPress={openMaps}>
                   <Text style={s.mapsTxt}>Open in Maps</Text>
                 </Pressable>
@@ -309,6 +311,11 @@ const s = StyleSheet.create({
   modalCloseTxt: {
     color: '#fff',
     fontWeight: '700',
+  },
+  descText: {
+    marginTop: 4,
+    color: '#4B5563',
+    fontSize: 14,
   },
 
   // actionsRow: { paddingHorizontal: 16, marginTop: 12 },

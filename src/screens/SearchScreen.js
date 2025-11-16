@@ -1,4 +1,4 @@
-import React, {useMemo, useState} from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,21 +9,24 @@ import {
   StyleSheet,
   Modal,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
-import {useNavigation} from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 
-import {MOCK_POSTS} from '../data/mockPlants';
 import DateTimePicker, {
   DateTimePickerAndroid,
 } from '@react-native-community/datetimepicker';
 
+import { fetchObservationFeed, API_BASE_URL } from '../../services/api';
+
 const CONFIDENCE_OPTIONS = [0, 60, 80];
 const SORT_OPTIONS = [
-  {key: 'newest', label: 'Newest'},
-  {key: 'oldest', label: 'Oldest'},
-  {key: 'az', label: 'A to Z'},
+  { key: 'newest', label: 'Newest' },
+  { key: 'oldest', label: 'Oldest' },
+  { key: 'az', label: 'A to Z' },
 ];
+
 const SPECIES_SLUGS = [
   'acacia_auriculiformis',
   'acacia_mangium',
@@ -38,8 +41,9 @@ const SPECIES_SLUGS = [
   'peperomia_pellucida',
   'phyllanthus_amarus',
 ];
+
 const SPECIES_OPTIONS = [
-  {key: 'all', label: 'All species'},
+  { key: 'all', label: 'All species' },
   ...SPECIES_SLUGS.map(key => ({
     key,
     label: key
@@ -100,6 +104,10 @@ function formatDateOnly(date) {
 export default function SearchScreen() {
   const nav = useNavigation();
 
+  const [posts, setPosts] = useState([]);
+  const [loadingFeed, setLoadingFeed] = useState(false);
+  const [feedError, setFeedError] = useState(null);
+
   const [query, setQuery] = useState('');
   const [rarityFilter, setRarityFilter] = useState('all');
   const [sourceFilter, setSourceFilter] = useState('all');
@@ -114,11 +122,81 @@ export default function SearchScreen() {
   const [iosTempDate, setIosTempDate] = useState(new Date());
   const [filtersExpanded, setFiltersExpanded] = useState(true);
 
+    // load verified observation feed from backend
+  useEffect(() => {
+    let mounted = true;
+
+    async function load() {
+      try {
+        setLoadingFeed(true);
+        setFeedError(null);
+
+        const data = await fetchObservationFeed(); // raw rows from backend
+        if (!mounted) return;
+
+        const baseUrl = API_BASE_URL.replace(/\/api$/, '');
+
+        const mapped = (data || []).map(row => {
+          const lat =
+            row.location_latitude != null
+              ? Number(row.location_latitude)
+              : null;
+          const lon =
+            row.location_longitude != null
+              ? Number(row.location_longitude)
+              : null;
+
+          const rawConf = Number(row.confidence_score ?? 0);
+          const confidence =
+            rawConf <= 1.0001 && rawConf >= 0 ? rawConf * 100 : rawConf;
+
+          const relPhoto = row.photo_url || row.image_url || '';
+          const photoUri = relPhoto.startsWith('http')
+            ? relPhoto
+            : `${baseUrl}${relPhoto}`;
+
+          return {
+            id: String(row.observation_id),
+            speciesName: row.scientific_name,
+            scientificName: row.scientific_name,
+            commonName: row.common_name,
+            description: row.description, // species description
+            isEndangered: !!row.is_endangered,
+            photoUri,
+            createdAt: row.created_at,
+            confidence,
+            latitude: Number.isFinite(lat) ? lat : null,
+            longitude: Number.isFinite(lon) ? lon : null,
+            notes: row.notes, // observation notes
+            uploadedBy: row.username,
+            source: row.source || 'camera',
+          };
+        });
+
+        setPosts(mapped);
+      } catch (err) {
+        console.error('[SearchScreen] failed to load feed', err);
+        if (mounted) {
+          setFeedError(
+            err?.message || 'Failed to load community observations.'
+          );
+        }
+      } finally {
+        if (mounted) setLoadingFeed(false);
+      }
+    }
+
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const results = useMemo(() => {
     const term = query.trim().toLowerCase();
     const startBoundary = dateRange.start ? startOfDay(dateRange.start) : null;
     const endBoundary = dateRange.end ? endOfDay(dateRange.end) : null;
-    let list = MOCK_POSTS.slice();
+    let list = posts.slice();
 
     if (term) {
       list = list.filter(item => {
@@ -126,7 +204,6 @@ export default function SearchScreen() {
           item.speciesName,
           item.commonName,
           item.scientificName,
-          item.locationName,
           item.uploadedBy,
         ]
           .filter(Boolean)
@@ -173,18 +250,19 @@ export default function SearchScreen() {
     switch (sort) {
       case 'oldest':
         return list.sort(
-          (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
+          (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
         );
       case 'az':
         return list.sort((a, b) =>
-          (a.speciesName || '').localeCompare(b.speciesName || ''),
+          (a.speciesName || '').localeCompare(b.speciesName || '')
         );
       default:
         return list.sort(
-          (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
         );
     }
   }, [
+    posts,
     query,
     rarityFilter,
     speciesFilter,
@@ -212,7 +290,7 @@ export default function SearchScreen() {
   };
 
   const clearDateRange = () => {
-    setDateRange({start: null, end: null});
+    setDateRange({ start: null, end: null });
     setActiveDateField(null);
   };
 
@@ -220,7 +298,7 @@ export default function SearchScreen() {
     if (!field || !selectedDate) return;
     const safeDate = new Date(selectedDate);
     setDateRange(prev => {
-      const next = {...prev, [field]: safeDate};
+      const next = { ...prev, [field]: safeDate };
       if (field === 'start' && next.end && safeDate > next.end) {
         next.end = null;
       }
@@ -276,22 +354,21 @@ export default function SearchScreen() {
   const iosModalTitle =
     activeDateField === 'end' ? 'Select end date' : 'Select start date';
 
-  const renderItem = ({item}) => {
+  const renderItem = ({ item }) => {
     const imgSource =
-      typeof item.photoUri === 'string' ? {uri: item.photoUri} : item.photoUri;
+      typeof item.photoUri === 'string' ? { uri: item.photoUri } : item.photoUri;
 
     const openObservation = () =>
       nav.navigate('ObservationDetail', {
         id: item.id,
-        speciesName: item.speciesName,
+        speciesName: item.scientificName || item.speciesName,
         scientificName: item.scientificName,
         commonName: item.commonName,
+        description: item.description, // species description
         isEndangered: item.isEndangered,
         photoUri: item.photoUri,
         createdAt: item.createdAt,
         confidence: item.confidence,
-        region: item.region,
-        locationName: item.locationName,
         latitude: item.latitude,
         longitude: item.longitude,
         notes: item.notes,
@@ -301,6 +378,20 @@ export default function SearchScreen() {
 
     const userInitials = (item.uploadedBy || '?').slice(0, 2).toUpperCase();
 
+    let locationMeta;
+    if (item.isEndangered) {
+      locationMeta = 'Location hidden to protect species';
+    } else if (
+      item.latitude != null &&
+      item.longitude != null &&
+      Number.isFinite(item.latitude) &&
+      Number.isFinite(item.longitude)
+    ) {
+      locationMeta = `${item.latitude.toFixed(4)}, ${item.longitude.toFixed(4)}`;
+    } else {
+      locationMeta = 'Unknown location';
+    }  
+    
     return (
       <View style={s.post}>
         <View style={s.postHeader}>
@@ -327,13 +418,12 @@ export default function SearchScreen() {
 
         <View style={s.postBody}>
           <Text style={s.postTitle}>
-            {item.speciesName || item.commonName || 'Unknown species'}
+            {item.scientificName ||
+              item.speciesName ||
+              item.commonName ||
+              'Unknown species'}
           </Text>
-          <Text style={s.postMeta}>
-            {item.isEndangered
-              ? 'Location hidden to protect species'
-              : item.locationName || 'Unknown location'}
-          </Text>
+          <Text style={s.postMeta}>{locationMeta}</Text>
           <Text style={s.postTimestamp}>{formatDate(item.createdAt)}</Text>
         </View>
       </View>
@@ -395,6 +485,17 @@ export default function SearchScreen() {
               Discover plants shared by the community. Search by name, sort, or
               filter to find what you need.
             </Text>
+
+            {loadingFeed && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <ActivityIndicator size="small" />
+                <Text style={{ color: '#64748B' }}>Loading community observations...</Text>
+              </View>
+            )}
+
+            {feedError && !loadingFeed && (
+              <Text style={{ color: '#B91C1C' }}>{feedError}</Text>
+            )}
 
             <View style={s.searchBox}>
               <TextInput
@@ -637,12 +738,14 @@ export default function SearchScreen() {
           </View>
         }
         ListEmptyComponent={
-          <View style={s.emptyState}>
-            <Text style={s.emptyTitle}>No plants found</Text>
-            <Text style={s.emptySubtitle}>
-              Try adjusting your search or filter selections.
-            </Text>
-          </View>
+          !loadingFeed && (
+            <View style={s.emptyState}>
+              <Text style={s.emptyTitle}>No plants found</Text>
+              <Text style={s.emptySubtitle}>
+                Try adjusting your search or filter selections.
+              </Text>
+            </View>
+          )
         }
         keyboardShouldPersistTaps="handled"
       />

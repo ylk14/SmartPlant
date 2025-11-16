@@ -436,3 +436,15 @@ export async function updateObservationLocation(observationId, payload) {
   }
   return json;
 }
+
+export async function fetchObservationFeed() {
+  const response = await fetch(`${API_BASE_URL}/observations/feed`);
+
+  if (!response.ok) {
+    const text = await response.text();
+    console.error('[fetchObservationFeed] HTTP', response.status, text);
+    throw new Error('Failed to load observation feed');
+  }
+
+  return response.json();
+}
