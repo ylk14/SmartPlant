@@ -15,26 +15,24 @@ const Login = ({ onLogin }) => {
 
   const [userEmail, setUserEmail] = useState('');
 
-  // ❌ REMOVED FAKE MOCK CODE
-  // const [mockCode, setMockCode] = useState('');
-  // const generateMockCode = () => Math.floor(100000 + Math.random() * 900000).toString();
 
-  // ======================================================
-  // ⭐ UPDATED — REAL LOGIN + MFA CHALLENGE
-  // ======================================================
-  const handleCredentialsSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+const handleCredentialsSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setError('');
 
-    try {
-      const response = await loginUser(email, password);
+  try {
+    const response = await loginUser(email, password);
 
-      if (!response.success) throw new Error(response.message);
+    if (!response.success) throw new Error(response.message);
 
-// ⭐ Store values exactly like mobile
+    const roleName = response.role_name?.toLowerCase();
+    if (roleName !== "admin" && roleName !== "plant_researcher") {
+      throw new Error("Your account does not have admin access.");
+    }
+
     setChallengeId(response.challenge_id);
-    setUserEmail(email);   
+    setUserEmail(email);
 
     setPendingUser({
       user_id: response.user_id,
@@ -42,34 +40,26 @@ const Login = ({ onLogin }) => {
       role_name: response.role_name
     });
 
-// Next step → MFA
-setStep(2);
+    setStep(2);
 
-
-      // ⭐ NEXT → MFA STEP
-      setStep(2);
-
-    } catch (err) {
-      if (err.response?.data?.message) {
-        setError(err.response.data.message);
-      } else {
-        setError(err.message || 'An error occurred.');
-      }
-    } finally {
-      setLoading(false);
+  } catch (err) {
+    if (err.response?.data?.message) {
+      setError(err.response.data.message);
+    } else {
+      setError(err.message || "An error occurred.");
     }
-  };
+  } finally {
+    setLoading(false);
+  }
+};
 
-  // ======================================================
-  // ⭐ UPDATED — REAL VERIFY MFA USING BACKEND
-  // ======================================================
   const handleMFASubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
-      // ⭐ CALL REAL API
+      // CALL REAL API
       const result = await postVerifyMfa({
           email: userEmail,
           challenge_id: challengeId,
@@ -83,7 +73,7 @@ setStep(2);
         throw new Error(result.message || "Invalid verification code");
       }
 
-      // ⭐ SUCCESS → return user to parent
+      // SUCCESS → return user to parent
       onLogin(result.user);
 
     } catch (err) {
@@ -93,7 +83,7 @@ setStep(2);
     }
   };
 
-  // ⭐ UPDATED — Real resend (simple text)
+  // Real resend (simple text)
   const handleResendCode = () => {
     setError("A new OTP has been sent to your email.");
   };

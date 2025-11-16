@@ -3,6 +3,8 @@ import axios from "axios";
 const API_BASE_URL =
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_BACKEND_URL) ||
   "http://localhost:3000"; 
+console.log("🔥 USING THIS apiClient.js");
+
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -15,21 +17,42 @@ export const postVerifyMfa = async (payload) => {
 };
 
 export const fetchUsers = async () => {
-  const { data } = await apiClient.get("/api/users");
+  const { data } = await apiClient.post("/api/admin/users/list");
+
+  return data || [];
+};
+
+export const getUser = async (userId) => {
+  const { data } = await apiClient.post("/api/admin/users/get", {
+    user_id: userId,
+  });
+  return data.user;
+};
+
+export const updateUser = async (userId, payload) => {
+  const { data } = await apiClient.post("/api/admin/users/update", {
+    user_id: userId,
+    ...payload,
+  });
   return data;
 };
 
 export const fetchRoles = async () => {
-  const { data } = await apiClient.get("/api/roles");
-  return data;
+  const { data } = await apiClient.post("/api/admin/roles/list");
+  return data.roles || [];
 };
 
-export const updateUser = async (userId, payload) => {
-  const { data } = await apiClient.put(`/api/users/${userId}`, payload);
-  return data;
-};
+export const normalizeUser = (u) => ({
+  ...u,
+  active: u.is_active === 1 || u.is_active === true,
+  role: u.role_name || u.role || "",
+});
 
-// --- ⬇️ NEW FUNCTIONS FOR IOT PAGE ⬇️ ---
+
+export const normalizeUserList = (list = []) =>
+  list.map((u) => normalizeUser(u));
+
+// --- NEW FUNCTIONS FOR IOT PAGE ---
 
 /**
  * Fetches the full list of all devices for the admin dashboard.
