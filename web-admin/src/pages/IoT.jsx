@@ -8,18 +8,19 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
-import { fetchDevices, resolveDeviceAlerts, fetchSpeciesList, addNewDevice } from '../services/apiClient'; // 👈 --- ADD NEW IMPORTS
+
+// Assuming api.js is in ../services/
+import { fetchDevices, resolveDeviceAlerts, fetchSpeciesList, addNewDevice } from '../services/api'; 
 
 const Iot = () => {
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [devices, setDevices] = useState([]); // Start with empty array
+  const [devices, setDevices] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null); // Added for error handling
+  const [error, setError] = useState(null); 
 
-  // 👇 --- NEW STATE FOR ADD DEVICE MODAL ---
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [speciesList, setSpeciesList] = useState([]);
   const [formData, setFormData] = useState({
@@ -31,37 +32,36 @@ const Iot = () => {
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState('');
 
-  // Load data function
   const loadData = async () => {
     try {
-      const data = await fetchDevices(); // 👈 --- CALL THE API
+      const data = await fetchDevices(); 
       
-      // ❗ --- DATA TRANSFORMATION --- ❗
-      // Your backend returns 'alerts' as a string "motion, humidity"
-      // We must convert it to an array for the frontend to work.
       const transformedData = data.map(device => ({
         ...device,
-        // Check if alerts is a non-empty string, then split it
         alerts: (device.alerts && typeof device.alerts === 'string') 
           ? device.alerts.split(', ') 
           : [],
       }));
 
       setDevices(transformedData);
-      setError(null); // Clear any previous errors
+      setError(null); 
     } catch (err) {
       console.error("Failed to load data:", err);
       setError("Failed to load device data. Please try again.");
     }
   };
 
-  // 👇 --- NEW FUNCTION TO LOAD SPECIES ---
+  // 👇 --- THIS IS THE FIX --- 👇
   const loadSpecies = async () => {
     try {
-      const species = await fetchSpeciesList();
-      setSpeciesList(species || []);
+      // 1. Fetch the data. It's already formatted by the backend
+      const speciesData = await fetchSpeciesList();
+      
+      // 2. Set the data directly to state. No more formatting needed.
+      setSpeciesList(speciesData || []); 
     } catch (err) {
       console.error('Failed to load species:', err);
+      setFormError('Failed to load species list. Cannot add a device.');
     }
   };
 
@@ -75,12 +75,10 @@ const Iot = () => {
     
     loadInitialData();
     
-    // Auto-refresh every 30 seconds
     const intervalId = setInterval(loadData, 30000);
     return () => clearInterval(intervalId);
   }, []);
 
-  // 👇 --- NEW FUNCTION TO OPEN ADD MODAL ---
   const openAddModal = async () => {
     setFormData({
       device_name: '',
@@ -89,17 +87,15 @@ const Iot = () => {
       longitude: ''
     });
     setFormError('');
-    await loadSpecies(); // Load species when modal opens
     setIsAddModalOpen(true);
+    await loadSpecies(); 
   };
 
-  // 👇 --- NEW FUNCTION TO CLOSE ADD MODAL ---
   const closeAddModal = () => {
     setIsAddModalOpen(false);
     setFormError('');
   };
 
-  // 👇 --- NEW FUNCTION TO HANDLE FORM INPUT CHANGES ---
   const handleFormChange = (field, value) => {
     setFormData(prev => ({
       ...prev,
@@ -107,38 +103,34 @@ const Iot = () => {
     }));
   };
 
-  // 👇 --- NEW FUNCTION TO SUBMIT NEW DEVICE ---
   const handleAddDevice = async (e) => {
     e.preventDefault();
     setFormLoading(true);
     setFormError('');
 
     try {
-      // Validate required fields
       if (!formData.device_name || !formData.species_id || !formData.latitude || !formData.longitude) {
         setFormError('All fields are required');
+        setFormLoading(false); 
         return;
       }
 
       await addNewDevice(formData);
       closeAddModal();
-      // Refresh the device list to show the new device
       await loadData();
     } catch (err) {
-      setFormError(err.message || 'Failed to add device');
+      setFormError(err.response?.data?.error || err.message || 'Failed to add device');
     } finally {
       setFormLoading(false);
     }
   };
 
-  // Manual refresh
   const onRefresh = async () => {
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
   };
 
-  // Filter devices based on search
   const filteredDevices = useMemo(() => {
     if (!searchQuery.trim()) return devices;
     
@@ -148,7 +140,6 @@ const Iot = () => {
         device.device_name,
         device.device_id,
         device.species_name,
-        // ❗ FIXED: Backend provides coordinates, not location.name
         device.location.latitude.toString(),
         device.location.longitude.toString(),
       ].join(' ').toLowerCase();
@@ -157,7 +148,6 @@ const Iot = () => {
     });
   }, [searchQuery, devices]);
 
-  // Separate alert devices
   const alertDevices = filteredDevices.filter(device => device.alerts && device.alerts.length > 0);
   const normalDevices = filteredDevices.filter(device => !device.alerts || device.alerts.length === 0);
 
@@ -171,13 +161,9 @@ const Iot = () => {
     setSelectedDevice(null);
   };
 
-  // ❗ --- UPDATED: Resolve alerts via API --- ❗
   const handleResolveAlerts = async (rawDeviceId) => {
     try {
-      // 1. Call the API to resolve alerts in the database
       await resolveDeviceAlerts(rawDeviceId);
-      
-      // 2. Refresh the data from the server to show the change
       await loadData(); 
     } catch (err) {
       console.error(`Failed to resolve alerts for device ${rawDeviceId}:`, err);
@@ -185,7 +171,6 @@ const Iot = () => {
     }
   };
 
-  // Show loading state
   if (loading) {
     return (
       <div style={styles.container}>
@@ -197,7 +182,6 @@ const Iot = () => {
     );
   }
 
-  // Show error state
   if (error && devices.length === 0) {
     return (
       <div style={styles.container}>
@@ -221,7 +205,6 @@ const Iot = () => {
             <h1 style={styles.title}>IoT Monitoring</h1>
             <p style={styles.subtitle}>Real-time sensor data from all connected devices</p>
           </div>
-          {/* 👇 --- ADD DEVICE BUTTON --- */}
           <button 
             style={styles.addDeviceButton}
             onClick={openAddModal}
@@ -232,7 +215,6 @@ const Iot = () => {
         </div>
       </div>
 
-      {/* Search Bar */}
       <div style={styles.searchBar}>
         <SearchIcon style={styles.searchIcon} />
         <input
@@ -251,7 +233,6 @@ const Iot = () => {
         )}
       </div>
 
-      {/* Refresh Button */}
       <div style={styles.refreshContainer}>
         <button 
           style={styles.refreshButton}
@@ -263,7 +244,6 @@ const Iot = () => {
         </button>
       </div>
 
-      {/* Alert Devices Section */}
       {alertDevices.length > 0 && (
         <div style={styles.alertSection}>
           <div style={styles.sectionHeader}>
@@ -278,13 +258,11 @@ const Iot = () => {
               <div key={device.device_id} style={styles.alertRow}>
                 <div style={styles.cell}>
                   <div style={styles.plantName}>{device.species_name}</div>
-                  {/* ❗ FIXED: Show coordinates as location.name isn't available */}
                   <div style={styles.location}>
                     Lat: {device.location.latitude.toFixed(4)}, 
                     Lng: {device.location.longitude.toFixed(4)}
                   </div>
                   <div style={styles.alertBadge}>
-                    {/* This works now because we converted alerts to an array */}
                     Alerts: {device.alerts.join(', ')}
                   </div>
                 </div>
@@ -296,7 +274,6 @@ const Iot = () => {
                   <div style={styles.actions}>
                     <button 
                       style={styles.resolveButton}
-                      // ❗ FIXED: Pass the raw ID (e.g., 14) to the API
                       onClick={() => handleResolveAlerts(device.device_id_raw)}
                     >
                       <CheckCircleIcon style={styles.buttonIcon} />
@@ -317,7 +294,6 @@ const Iot = () => {
         </div>
       )}
 
-      {/* Normal Devices Section */}
       <div style={styles.section}>
         <div style={styles.sectionHeader}>
           <div style={styles.titleWithIcon}>
@@ -333,7 +309,6 @@ const Iot = () => {
               <div key={device.device_id} style={styles.row}>
                 <div style={styles.cell}>
                   <div style={styles.plantName}>{device.species_name}</div>
-                  {/* ❗ FIXED: Show coordinates as location.name isn't available */}
                   <div style={styles.location}>
                     Lat: {device.location.latitude.toFixed(4)}, 
                     Lng: {device.location.longitude.toFixed(4)}
@@ -383,7 +358,6 @@ const Iot = () => {
         />
       )}
 
-      {/* 👇 --- ADD DEVICE MODAL --- */}
       {isAddModalOpen && (
         <div style={styles.modalBackdrop}>
           <div style={styles.modalContent}>
@@ -426,6 +400,7 @@ const Iot = () => {
                     required
                   >
                     <option value="">Select a species</option>
+                    {/* 👇 --- This now correctly reads 'display_name' --- 👇 */}
                     {speciesList.map(species => (
                       <option key={species.species_id} value={species.species_id}>
                         {species.display_name}
@@ -488,7 +463,7 @@ const Iot = () => {
   );
 };
 
-// 👇 --- UPDATED STYLES (Added new styles for modal and button) ---
+// --- STYLES (Unchanged) ---
 const styles = {
   container: {
     padding: '20px',
@@ -516,7 +491,6 @@ const styles = {
     color: '#6b7280',
     margin: 0,
   },
-  // 👇 --- NEW ADD DEVICE BUTTON STYLES ---
   addDeviceButton: {
     display: 'flex',
     alignItems: 'center',
@@ -768,7 +742,6 @@ const styles = {
     animation: 'spin 1s linear infinite',
     marginBottom: '12px',
   },
-  // 👇 --- NEW MODAL STYLES ---
   modalBackdrop: {
     position: 'fixed',
     top: 0,
@@ -849,19 +822,11 @@ const styles = {
     fontSize: '14px',
     boxSizing: 'border-box',
   },
-  formInput: {
-    width: '100%',
-    padding: '10px 12px',
-    border: '1px solid #d1d5db',
-    borderRadius: '6px',
-    fontSize: '14px',
-    boxSizing: 'border-box',
-  },
   errorMessage: {
     backgroundColor: '#fef2f2',
     border: '1px solid #fecaca',
     color: '#dc2626',
-    padding: '12px',
+    padding: '1Music',
     borderRadius: '6px',
     marginBottom: '16px',
     fontSize: '14px',

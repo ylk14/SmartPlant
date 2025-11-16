@@ -101,15 +101,26 @@ export default function AdminAgentChat() {
   };
 
   // SVG Icons as React components
-  const ChatIcon = () => (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-    </svg>
-  );
+const ChatIcon = () => (
+  <svg
+    width="24"
+    height="24"
+    viewBox="0 0 512 512"
+    fill="currentColor"
+  >
+    <path d="M208 512L155.62 372.38 16 320l139.62-52.38L208 128l52.38 139.62L400 320l-139.62 52.38L208 512z" />
+    <path d="M88 176L64.43 111.57 0 88l64.43-23.57L88 0l23.57 64.43L176 88l-64.43 23.57L88 176z" />
+    <path d="M400 256l-31.11-80.89L288 144l80.89-31.11L400 32l31.11 80.89L512 144l-80.89 31.11L400 256z" />
+  </svg>
+);
+
+
 
   const SparkleIcon = () => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+    <path d="M15.5 2l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z" />
+    <path d="M4.5 10.5l0.9 2.1 2.1 0.9-2.1 0.9-0.9 2.1-0.9-2.1-2.1-0.9 2.1-0.9 0.9-2.1z" />
+    <path d="M10.2 17.8l0.5 1.1 1.1 0.5-1.1 0.5-0.5 1.1-0.5-1.1-1.1-0.5 1.1-0.5 0.5-1.1z" />
     </svg>
   );
 

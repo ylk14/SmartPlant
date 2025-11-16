@@ -7,15 +7,19 @@ import * as Location from 'expo-location';
 import ScannerOverlay from '../screens/components/ScannerOverlay';
 import { API_BASE_URL } from '../../services/api';
 
-// const API_BASE = 'http://localhost:3000';
-// const API_BASE = 'http://10.0.2.2:3000';
-// const API_BASE = 'http://192.168.0.112:3000';
+// 1. 👈 --- IMPORT THE useAuth HOOK ---
+import { useAuth } from '../context/AuthContext'; 
+
 const LOW_CONFIDENCE_THRESHOLD = 60;
 
 export default function PreviewScreen() {
   const nav = useNavigation();
   const route = useRoute();
   const { uri, source, exif } = route.params ?? {};
+
+  // 2. 👈 --- GET THE LOGGED-IN USER ---
+  const { user } = useAuth(); // This hook gets the user from your AuthContext
+
   const [loading, setLoading] = useState(false);
   const [gpsCoords, setGpsCoords] = useState(null);
   const [askedLocation, setAskedLocation] = useState(false);
@@ -37,7 +41,7 @@ export default function PreviewScreen() {
       let lat = null;
       let lon = null;
 
-      // Try to get device GPS if user allows
+      // ... (location fetching code is unchanged) ...
       try {
         if (!askedLocation) {
           setAskedLocation(true);
@@ -56,7 +60,6 @@ export default function PreviewScreen() {
         console.log('[location] error getting coordinates', err);
       }
 
-      // Fallback to EXIF GPS if device GPS is not available
       if ((lat == null || lon == null) && exif?.GPSLatitude && exif?.GPSLongitude) {
         const exifLat = Number(exif.GPSLatitude);
         const exifLon = Number(exif.GPSLongitude);
@@ -76,14 +79,12 @@ export default function PreviewScreen() {
         type: 'image/jpeg',
       });
 
-      // send coordinates only if we actually have them
       if (
         lat != null &&
         lon != null &&
         Number.isFinite(lat) &&
         Number.isFinite(lon)
       ) {
-        // backend supports location_latitude/location_longitude
         form.append('location_latitude', String(lat));
         form.append('location_longitude', String(lon));
       }
@@ -92,8 +93,15 @@ export default function PreviewScreen() {
         form.append('notes', `Captured: ${exif.DateTime}`);
       }
 
-      // temp hardcoded user for testing
-      form.append('user_id', '1');
+      // 3. 👈 --- THIS IS THE FIX ---
+      // Instead of hard-coding '1', use the real user's ID
+      if (user && user.user_id) {
+        form.append('user_id', String(user.user_id));
+      } else {
+        // Fallback in case something goes wrong (though it shouldn't)
+        console.warn('No user ID found, associating with default user 1');
+        form.append('user_id', '1');
+      }
 
       const url = `${API_BASE_URL}/scan`;
       console.log('[scan] posting to', url);
@@ -126,12 +134,9 @@ export default function PreviewScreen() {
   };
 
   return (
-    // SafeAreaView keeps header clear of the notch/camera
+    // ... (rest of the file is unchanged) ...
     <SafeAreaView style={s.container} edges={['top', 'left', 'right']}>
-      {/* background image */}
       <Image source={{ uri }} style={s.img} resizeMode="contain" />
-
-      {/* overlay layer (header + meta) */}
       <View style={s.overlay}>
         <View style={s.topBar}>
           <TouchableOpacity onPress={() => nav.goBack()} style={s.topBtn}>
@@ -165,17 +170,12 @@ export default function PreviewScreen() {
   );
 }
 
+// ... (styles are unchanged) ...
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000' },
-
-  // image behind everything
   img: { width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 },
-
-  // header & footer overlay
   overlay: { flex: 1, justifyContent: 'space-between' },
-
-  // header bar (no manual marginTop now; SafeAreaView handles it)
   topBar: {
     height: 56,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -192,10 +192,8 @@ const s = StyleSheet.create({
   topTitle: { color: '#fff', fontSize: 16, fontWeight: '700' },
   doneBtn: { backgroundColor: '#6DAF7A', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
   doneTxt: { color: '#fff', fontWeight: '800' },
-
   meta: { backgroundColor: 'rgba(0,0,0,0.6)', padding: 12 },
   metaTxt: { color: '#fff' },
-
   btn: { marginTop: 12, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#6DAF7A', borderRadius: 8 },
   btnTxt: { color: '#fff', fontWeight: '700' },
 });

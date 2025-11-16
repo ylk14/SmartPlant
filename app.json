@@ -4,13 +4,13 @@
     "slug": "SmartPlant",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/smartplant-icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
 
     "splash": {
       "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
+      "resizeMode": "cover",
       "backgroundColor": "#ffffff"
     },
     "ios": {
