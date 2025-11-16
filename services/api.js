@@ -238,6 +238,16 @@ export const fetchObservationsBySpecies = async (speciesId) => {
   }
 };
 
+export const fetchSpeciesList = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/species/all`);
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Error fetching species list:", error);
+    throw error;
+  }
+};
+
 export const fetchAllSpecies = fetchSpeciesList;
 
 export const addNewDevice = async (deviceData) => {

@@ -133,14 +133,19 @@ export default function ResultScreen() {
 
   const topMatchDetails = useMemo(() => {
     const list = Array.isArray(result?.results) ? result.results : [];
+    if (!list.length) return undefined;
+
     const needle = (topMatch.species_name || '').toLowerCase();
-    if (!needle) return undefined;
-    return list.find(r => {
+    if (!needle) return list[0];  // fallback
+
+    const found = list.find(r => {
       const a = (r.scientific_name || '').toLowerCase();
       const b = (r.species_name || '').toLowerCase();
       const c = (r.common_name || '').toLowerCase();
       return a === needle || b === needle || c === needle;
     });
+
+    return found || list[0];  // fallback to first entry if no exact match
   }, [result, topMatch]);
 
   // const handleFlagUnsure = async () => {
