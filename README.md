@@ -36,3 +36,6 @@ cd SmartPlant
 
 # install JavaScript dependencies
 npm install
+
+# start the app
+npm run start
