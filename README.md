@@ -17,9 +17,11 @@ Make sure you have these installed:
 
 Backend requirements:
 
-- The AI backend (Node + Python) should be running on  
-  **http://10.0.2.2:3000** when using the Android emulator.  
-  If you change the backend port or host, update the URLs in the frontend code.
+- The AI backend (Node + Python) should be running
+- use the cmd and type ipconfig
+- take your ip address and add it into the \services\api.js in:
+  const HOST = 'your-ip';
+- 
 
 ---
 
