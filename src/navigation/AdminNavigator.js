@@ -9,14 +9,12 @@ import { useAuth } from '../context/AuthContext';
 import AdminUsersScreen from '../screens/admin/AdminUsersScreen';
 import AdminFlagUnsureScreen from '../screens/admin/AdminFlagUnsureScreen';
 import AdminHeatmapScreen from '../screens/admin/AdminHeatmapScreen';
-import AdminActivityScreen from '../screens/admin/AdminActivityScreen';
 import AdminIotScreen from '../screens/admin/AdminIotScreen';
 import {
   ADMIN_USERS,
   ADMIN_FLAG_UNSURE,
   ADMIN_HEATMAP,
   ADMIN_IOT,
-  ADMIN_ACTIVITY,
 } from './routes';
 import AdminSupportAgent from '../screens/admin/components/AdminSupportAgent';
 
@@ -71,12 +69,6 @@ function AdminDrawerContent(props) {
 // (List of screens with 'adminOnly' flag is unchanged and correct)
 const drawerScreens = [
   {
-    name: ADMIN_ACTIVITY,
-    label: 'Activity',
-    component: AdminActivityScreen,
-    adminOnly: false, // Everyone with access can see this
-  },
-  {
     name: ADMIN_USERS,
     label: 'Users',
     component: AdminUsersScreen,
@@ -92,13 +84,13 @@ const drawerScreens = [
     name: ADMIN_HEATMAP,
     label: 'Heatmap',
     component: AdminHeatmapScreen,
-    adminOnly: false, // Everyone with access can see this
+    adminOnly: false,
   },
   {
     name: ADMIN_IOT,
     label: 'IoT Monitoring',
     component: AdminIotScreen,
-    adminOnly: false, // Everyone with access can see this
+    adminOnly: false,
   },
 ];
 
@@ -116,9 +108,9 @@ export default function AdminNavigator() {
   return (
     <Drawer.Navigator
       // ⬇️ *** THIS IS THE FIX *** ⬇️
-      // We set the initial route to 'Activity', which all
-      // privileged users (admin + researcher) can see.
-      initialRouteName={ADMIN_ACTIVITY}
+        // We set the initial route to 'Flag Unsure', which all
+        // privileged users (admin + researcher) can see.
+        initialRouteName={ADMIN_FLAG_UNSURE}
       
       drawerContent={(props) => <AdminDrawerContent {...props} />}
       screenOptions={{
